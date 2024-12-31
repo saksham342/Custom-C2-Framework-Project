@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hacker Login</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            background: black;
+            color: lime;
+            overflow: hidden;
+        }
+
+        .matrix {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        .login-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        .login-container h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 10px lime;
+        }
+
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            width: 300px;
+        }
+
+        .login-form input {
+            padding: 10px;
+            border: 2px solid lime;
+            border-radius: 5px;
+            background: black;
+            color: lime;
+            font-size: 1.1rem;
+        }
+
+        .login-form button {
+            padding: 10px;
+            border: 2px solid lime;
+            border-radius: 5px;
+            background: lime;
+            color: black;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .login-form button:hover {
+            background: darkgreen;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="matrix" class="matrix"></canvas>
+    <div class="login-container">
+        <h1>Access Portal</h1>
+        <form class="login-form" id="loginForm" method="POST">
+            <input type="text" id="codename" name="codename" placeholder="Codename" required>
+            <input type="password" id="secret" name="secret" placeholder="Secret" required>
+            <button type="submit" id="loginButton">Enter</button>
+        </form>
+    </div>
+    <script>
+        // Matrix background animation
+        const canvas = document.getElementById("matrix");
+        const ctx = canvas.getContext("2d");
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        const fontSize = 14;
+        const columns = canvas.width / fontSize;
+        const drops = Array(Math.floor(columns)).fill(1);
+
+        function drawMatrix() {
+            ctx.fillStyle = "rgba(0, 0, 0, 0.05)";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "lime";
+            ctx.font = fontSize + "px monospace";
+
+            drops.forEach((y, x) => {
+                const text = letters[Math.floor(Math.random() * letters.length)];
+                ctx.fillText(text, x * fontSize, y * fontSize);
+                if (y * fontSize > canvas.height && Math.random() > 0.975) {
+                    drops[x] = 0;
+                }
+                drops[x]++;
+            });
+        }
+        setInterval(drawMatrix, 50);
+
+        // Intercept form submission and send data as JSON
+        document.getElementById("loginForm").addEventListener("submit", async function (event) {
+            event.preventDefault();
+
+            const codename = document.getElementById("codename").value;
+            const secret = document.getElementById("secret").value;
+
+            // Send data to the server
+            const response = await fetch("/api/login-verify", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ codename, secret })
+            });
+
+            const responseData = await response.json();
+
+            if (response.ok) {
+                // Set the token as a cookie
+                document.cookie = `token=${responseData.token}; path=/; samesite=Strict`;
+
+                // Redirect the user to the dashboard
+                window.location.href = responseData.redirect;
+            } else if (responseData.error) {
+                alert(responseData.error);
+            }
+        });
+
+
+    </script>
+</body>
+
+</html>
