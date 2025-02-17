@@ -316,14 +316,13 @@ def change_admin_password(decoded_token):
     if not current_admin_object:
         return jsonify({"error": "Admin not found."}), 404
     # Check if the current password matches the one stored in the database (for the superadmin)
-    if not bcrypt.checkpw(current_password.encode('utf-8'), current_admin_object.secret):  # bcry
+    if not bcrypt.checkpw(current_password.encode('utf-8'), current_admin_object.secret):  # bcrypt check
         return jsonify({"error": "Current password is incorrect."}), 401
     # Hash the new password
     hashed_new_password = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt())  # Store as bytes
     current_admin_object.secret = hashed_new_password
     db.session.commit()
     return jsonify({"message": "Password changed successfully."}), 200
-
 
 
 
@@ -356,8 +355,6 @@ def login_verify():
             return jsonify({"error": "Invalid codename or secret"}), 401
 
     return jsonify({"error": "Bad request"}), 400
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)
