@@ -7,7 +7,7 @@ import json
 
 SERVER_URL = "http://127.0.0.1:5000"  # Change to your actual server URL later
 
-CONFIG_FILE_LINUX = "/.rootconfig.ini"  # Path in Linux root directory
+CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
 
 # Function to get the username using `whoami` (works on both Windows and Linux)
@@ -98,7 +98,7 @@ def register_client():
         # Send a POST request to the /clientRegistration endpoint
         response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data)
 
-        if response.status_code == 200:
+        if response.status_code == 201:
             # Server response contains the client_id
             client_data = response.json()
             client_id = client_data.get("client_id")

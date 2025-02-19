@@ -6,6 +6,9 @@ import jwt
 import datetime
 from functools import wraps
 from dotenv import load_dotenv
+import random
+import string
+import requests
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +47,7 @@ class ClientData(db.Model):
     os = db.Column(db.String(128), nullable=False)
     registered_at = db.Column(db.DateTime)  # Registration timestamp
     last_active = db.Column(db.DateTime)  # Last active timestamp
+    address = db.Column(db.String(128), nullable=False)
 
     def __repr__(self):
         return f"<ClientData {self.client_id}>"
@@ -168,15 +172,29 @@ def generate_client_id():
     timestampForClientID = timestamp.strftime('%Y%m%d%H%M%S')
     return f"{random_uuid}-{timestampForClientID}"
 
+
+def get_address(ip):
+    url = f"https://ipinfo.io/{ip}/json"
+    response = requests.get(url)
+
+    if response.status_code == 200:
+        data = response.json()
+        city = data.get("city", "N/A")
+        region = data.get("region", "N/A")
+        country = data.get("country", "N/A")
+        return f"{city} - {region} - {country}"
+    
+    return "Unable to fetch location"
+
+
 # Sample route for client registration
 @app.route('/api/clientRegistration', methods=['POST'])
 def client_registration():
     data = request.get_json()
-
+    print(data)
     # Extract client details from request
     user = data.get('user')
-    nickname = data.get('nickname')
-    ip = data.get('ip')
+    ip = data.get('public_ip')
     os = data.get('os')
 
     # Generate a unique client_id (random 6 characters + timestamp)
@@ -189,11 +207,12 @@ def client_registration():
     new_client = ClientData(
         client_id=client_id,
         user=user,
-        nickname=nickname,
+        nickname="nickname",
         ip=ip,
         os=os,
-        registered_at=timestamp,
-        last_active=reg_date
+        registered_at=reg_date,
+        last_active=reg_date,
+        address = get_address(ip)
     )
 
     try:
