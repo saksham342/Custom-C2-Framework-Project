@@ -242,12 +242,24 @@ def execute_command():
     return jsonify({"status": "No command received"})
 
 
+
+def update_last_active_time(client):
+    if client:
+        client.last_active = datetime.datetime.utcnow()  # Directly updating last_active field
+        db.session.commit()
+        return jsonify({"status": "updated"}), 200
+    return jsonify({"error": "Client not found"}), 404
+
 @app.route('/command-transmission-to-client', methods=['GET'])
 def receive_command():
     client_id = request.args.get('clientID')  # Get the clientID from the query string
     if not client_id:
         return jsonify({"error": "clientID is required"}), 400  # Return an error if clientID is not provided
-
+    client_in_database = ClientData.query.filter_by(client_id=client_id).first()
+    if not (client_id == client_in_database.client_id):
+        print(" no client")
+        return jsonify({"error": "Client is not found in database"})
+    update_last_active_time(client_in_database)
     global command_to_execute
     if command_to_execute:
         cmd = command_to_execute
