@@ -64,8 +64,8 @@ class CommandsLog(db.Model):
     def __repr__(self):
         return f"<CommandsLog {self.log_id} for {self.client_id}>"
 
-command_to_execute = ""
-execution_result = ""
+command_to_execute = {}
+execution_result = {}
 
 def create_database():
     """Check if admin.db exists in the instance folder. If not, create it and add a default admin."""
@@ -236,13 +236,15 @@ def client_registration():
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
 @token_required
 def execute_command(decoded_token):
-    global command_to_execute
     global command_initiator
     command_initiator = decoded_token['user']['codename']
-    command = request.json.get("command", "")
-    if command:
-        command_to_execute = command
-        print(f"Received command: {command}")  # Log the received command in the terminal
+    command_json = request.get_json()
+    # print(command_json)
+    # print(command_json["command"])
+    if command_json["command"] and command_json["clientid"]:
+        command_to_execute[command_json["clientid"]] = command_json["command"]
+        print(command_to_execute)
+        print(f"Received command: {command_json["command"]}")  # Log the received command in the terminal
         return jsonify({"status": "Command received"})
     return jsonify({"status": "No command received"})
 
@@ -268,11 +270,10 @@ def receive_command():
         print("Client id with database is not matched")
         return jsonify({"error": "Client is not found in database"})
     update_last_active_time(client_in_database)
-    global command_to_execute
-    if command_to_execute:
-        cmd = command_to_execute
-        command_to_execute = ""  # Reset command after sending
-        return jsonify({"command": cmd})
+    if client_id in command_to_execute:
+        command = command_to_execute[client_id]
+        del command_to_execute[client_id]
+        return jsonify({"command": command})
     return jsonify({"command": None})
 
 
@@ -301,16 +302,16 @@ def tabs():
 
 @app.route('/execution-result-of-command-from-client', methods=['POST'])
 def receive_result():
-    global execution_result
     try:
         # Check if the request contains JSON
         if not request.is_json:
             return jsonify({"error": "Invalid data format, expected JSON"}), 400
-        data = request.json
+        data = request.get_json()
+        print(data)
         # Check if 'result' key exists in the received JSON
-        if "result" not in data:
-            return jsonify({"error": "'result' key is missing from the request"}), 400
-        execution_result = data.get("result", "No result received")
+        if "result" not in data or "client_id" not in data:
+            return jsonify({"error": "'result' or client_id key is missing from the request"}), 400
+        execution_result[data["client_id"]] = data["result"]
         print(f"Execution Result Received: {execution_result}")  # Log the result in the terminal
         return jsonify({"status": "Result received"}), 200
     except Exception as e:
@@ -323,12 +324,14 @@ def show_execution_result():
     try:
         # If no result has been received, notify the client
         if not execution_result:
-            return jsonify({"error": "No execution result available"}), 404
+            pass #return jsonify({"error": "No execution result available"}), 404
         # Return the execution result as JSON
+        
         execution_result_to_send = execution_result
-        execution_result = ""
-        return jsonify({"execution_result": execution_result_to_send}), 200
+        execution_result = {}
+        return execution_result_to_send, 200
     except Exception as e:
+        print(str(e))
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
 
@@ -344,7 +347,7 @@ def super_admin_panel(decoded_token):
 
 
 
-# Just code to show how to get all enteirs from database(without admin) in json so taht chatgpt understands it. 
+# Just code to show how to get all enteirs from database(without admin) in json so that chatgpt understands it. 
 # with app.app_context():
 #     admins = Admin.query.filter(Admin.codename != 'admin').all()
 #     admin_list = [{'id': admin.id, 'codename': admin.codename, 'role': admin.role} for admin in admins]

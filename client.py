@@ -168,7 +168,7 @@ while True:
                 result = execute_command(command)
                 
                 # Send the result back to the server
-                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client", json={"result": result})
+                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client", json={"result": result, "client_id":client_id})
                 
                 # Check if the result was successfully sent
                 if result_response.status_code != 200:

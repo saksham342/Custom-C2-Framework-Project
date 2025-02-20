@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,12 +11,13 @@
             padding: 0;
             background-color: #1a1a1a;
             color: white;
+            height: 100vh;
         }
 
         .container {
             display: flex;
             flex-direction: column;
-            height: 60vh;
+            height: 68vh;
         }
 
         .tabs-container {
@@ -45,12 +45,18 @@
         .clients-container {
             flex: 1;
             position: relative;
+            min-height: 0;
+            overflow: hidden;
         }
 
         .client-section {
             display: none;
             flex-direction: column;
             height: 100%;
+            position: absolute;
+            width: 100%;
+            top: 0;
+            bottom: 0;
         }
 
         .client-section.active {
@@ -65,6 +71,7 @@
             background-color: #000;
             color: #0f0;
             font-family: monospace;
+            min-height: 0;
         }
 
         .input-area {
@@ -73,6 +80,7 @@
             display: flex;
             gap: 10px;
             background: #222;
+            flex-shrink: 0;
         }
 
         .input-area .prompt {
@@ -119,7 +127,6 @@
         }
     </style>
 </head>
-
 <body>
     <div class="container">
         <div class="tabs-container" id="tabs-container"></div>
@@ -135,14 +142,12 @@
 
     <script>
         let activeClientId = null;
-        const liveClients = new Map(); // Stores client data by ID
+        const liveClients = new Map();
 
         // Fetch live clients periodically
         async function fetchLiveClients() {
             try {
-                const response = await fetch('/api/getLiveClients', {
-                    method: 'POST'
-                });
+                const response = await fetch('/api/getLiveClients', { method: 'POST' });
                 const data = await response.json();
                 updateClientList(data.live_clients);
             } catch (error) {
@@ -150,27 +155,19 @@
             }
         }
 
-        // Update client list and UI
         function updateClientList(clients) {
             const newClientIds = new Set(clients.map(c => c.client_id));
             const existingClientIds = new Set(liveClients.keys());
 
-            // Remove disconnected clients
             existingClientIds.forEach(id => {
-                if (!newClientIds.has(id)) {
-                    removeClient(id);
-                }
+                if (!newClientIds.has(id)) removeClient(id);
             });
 
-            // Add new clients
             clients.forEach(client => {
-                if (!liveClients.has(client.client_id)) {
-                    addClient(client);
-                }
+                if (!liveClients.has(client.client_id)) addClient(client);
             });
 
-            // Update no-clients message visibility
-            document.querySelector('.no-clients').style.display =
+            document.querySelector('.no-clients').style.display = 
                 liveClients.size > 0 ? 'none' : 'flex';
         }
 
@@ -220,53 +217,28 @@
             section.appendChild(inputArea);
             document.getElementById('clients-container').appendChild(section);
 
-            // Switch to new client if first one
-            if (liveClients.size === 1) {
-                switchTab(client.client_id);
-            }
-
-            // Show notification bar
+            if (liveClients.size === 1) switchTab(client.client_id);
             showNotification(`Client added: ${client.client_id} - ${client.nickname}`, true);
         }
 
         function removeClient(clientId) {
-            // Show notification bar
             const client = liveClients.get(clientId);
             showNotification(`Client removed: ${clientId} - ${client.nickname}`);
-            // Remove tab
-            const tab = document.querySelector(`.tab[data-client-id="${clientId}"]`);
-            if (tab) tab.remove();
 
-            // Remove client section
-            const section = document.getElementById(`client-${clientId}`);
-            if (section) section.remove();
-
+            document.querySelectorAll(`[data-client-id="${clientId}"]`).forEach(el => el.remove());
             liveClients.delete(clientId);
 
-            // If active client was removed, switch to first available
             if (activeClientId === clientId) {
                 const firstClient = liveClients.keys().next().value;
-                if (firstClient) {
-                    switchTab(firstClient);
-                } else {
-                    activeClientId = null;
-                }
+                firstClient ? switchTab(firstClient) : activeClientId = null;
             }
-
-            
         }
 
         function switchTab(clientId) {
-            // Update tabs
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.toggle('active', tab.dataset.clientId === clientId);
-            });
-
-            // Update client sections
-            document.querySelectorAll('.client-section').forEach(section => {
-                section.classList.toggle('active', section.id === `client-${clientId}`);
-            });
-
+            document.querySelectorAll('.tab').forEach(tab => 
+                tab.classList.toggle('active', tab.dataset.clientId === clientId));
+            document.querySelectorAll('.client-section').forEach(section => 
+                section.classList.toggle('active', section.id === `client-${clientId}`));
             activeClientId = clientId;
         }
 
@@ -274,56 +246,40 @@
             const command = inputElement.value.trim();
             if (!command) return;
 
-            // Add command to terminal
             const terminal = document.querySelector(`.terminal[data-client-id="${clientId}"]`);
             terminal.textContent += `${liveClients.get(clientId).user} > ${command}\n`;
             terminal.scrollTop = terminal.scrollHeight;
 
-            // Send command to server
             fetch('/input-command-to-execute-from-web', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ client_id: clientId, command })
+                body: JSON.stringify({ clientid: clientId, command })
             });
 
             inputElement.value = '';
         }
 
-
-        // Show notification bar with a message
         function showNotification(message, isConnected) {
             const notificationBar = document.getElementById('notification-bar');
-
-            // Set the color based on connection status
-            if (isConnected) {
-                notificationBar.style.backgroundColor = 'green'; // For connected clients
-            } else {
-                notificationBar.style.backgroundColor = 'red';   // For disconnected clients
-            }
-
+            notificationBar.style.backgroundColor = isConnected ? 'green' : 'red';
             notificationBar.textContent = message;
             notificationBar.style.display = 'block';
             notificationBar.style.right = '0';
 
             setTimeout(() => {
                 notificationBar.style.right = '-100%';
-                setTimeout(() => {
-                    notificationBar.style.display = 'none';
-                }, 500);
+                setTimeout(() => notificationBar.style.display = 'none', 500);
             }, 3000);
         }
 
-
-        // Fetch command results periodically
         async function fetchResults() {
             try {
                 const response = await fetch('/execution-result-to-show-in-web');
                 const data = await response.json();
-
-                if (data.client_id && data.execution_result) {
-                    const terminal = document.querySelector(`.terminal[data-client-id="${data.client_id}"]`);
+                for (const [client_id, result] of Object.entries(data)) {
+                    const terminal = document.querySelector(`.terminal[data-client-id="${client_id}"]`);
                     if (terminal) {
-                        terminal.textContent += data.execution_result + '\n';
+                        terminal.textContent += result + '\n';
                         terminal.scrollTop = terminal.scrollHeight;
                     }
                 }
@@ -337,5 +293,4 @@
         setInterval(fetchResults, 1000);
     </script>
 </body>
-
 </html>
