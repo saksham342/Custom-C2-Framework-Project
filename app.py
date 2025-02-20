@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import jwt
 import datetime
+from datetime import timedelta
 from functools import wraps
 from dotenv import load_dotenv
 import random
@@ -56,8 +57,8 @@ class ClientData(db.Model):
 class CommandsLog(db.Model):
     log_id = db.Column(db.Integer, primary_key=True)
     client_id = db.Column(db.String(64), db.ForeignKey('client_data.client_id'), nullable=False)  # Foreign Key for client_id
-    commands_history = db.Column(db.Text, nullable=False)  # Command history, JSON or serialized text
-    
+    command_initiator = db.Column(db.String(128), nullable=False)
+    commands_history = db.Column(db.Text)  # Command history, JSON or serialized text
     client = db.relationship('ClientData', backref=db.backref('commands_logs', lazy=True))
 
     def __repr__(self):
@@ -92,7 +93,7 @@ create_database()
 
 
 
-def generate_jwt(role):
+def generate_jwt(role,codename):
     """Generate a JWT for a given user role."""
     header = {
         'alg': 'HS256',  # Algorithm used to sign the token
@@ -101,7 +102,8 @@ def generate_jwt(role):
 
     payload = {
         'user': {
-            'role': role
+            'role': role,
+            'codename': codename
         },
         'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1),  # Token expires in 1 hour
         'iat': datetime.datetime.utcnow()  # Issued at time
@@ -232,8 +234,11 @@ def client_registration():
 
 
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
-def execute_command():
+@token_required
+def execute_command(decoded_token):
     global command_to_execute
+    global command_initiator
+    command_initiator = decoded_token['user']['codename']
     command = request.json.get("command", "")
     if command:
         command_to_execute = command
@@ -256,8 +261,11 @@ def receive_command():
     if not client_id:
         return jsonify({"error": "clientID is required"}), 400  # Return an error if clientID is not provided
     client_in_database = ClientData.query.filter_by(client_id=client_id).first()
+    if not client_in_database:
+        print("Client id is not present in database")
+        return jsonify({"error": "Client is not found in database"})
     if not (client_id == client_in_database.client_id):
-        print(" no client")
+        print("Client id with database is not matched")
         return jsonify({"error": "Client is not found in database"})
     update_last_active_time(client_in_database)
     global command_to_execute
@@ -266,6 +274,24 @@ def receive_command():
         command_to_execute = ""  # Reset command after sending
         return jsonify({"command": cmd})
     return jsonify({"command": None})
+
+
+@app.route('/api/getLiveClients', methods=['POST'])
+def getLiveClients():
+    with app.app_context():  # Ensure we have an active application context
+        clients = ClientData.query.all()  # Fetch all clients
+        threshold_time = datetime.datetime.utcnow() - timedelta(seconds=12)  # Set the threshold for recent activity
+
+        live_clients = [
+            {
+                "client_id": client.client_id,
+                "user": client.user,
+                "nickname": client.nickname,
+                "os": client.os
+            }
+            for client in clients if client.last_active and client.last_active >= threshold_time
+        ]
+        return jsonify({"live_clients": live_clients}), 200
 
 
 
@@ -508,7 +534,7 @@ def login_verify():
         if user_object and bcrypt.checkpw(user_secret.encode('utf-8'), user_object.secret):
             print("Authentication successful")
             
-            token = generate_jwt(user_object.role)
+            token = generate_jwt(user_object.role,user_object.codename)
 
             # Include the token and the redirection path in the response
             return jsonify({
