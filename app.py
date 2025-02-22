@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 import random
 import string
 import requests
+import json
 
 # Load environment variables
 load_dotenv()
@@ -55,10 +56,10 @@ class ClientData(db.Model):
 
 # Commands Log Table
 class CommandsLog(db.Model):
-    log_id = db.Column(db.Integer, primary_key=True)
-    client_id = db.Column(db.String(64), db.ForeignKey('client_data.client_id'), nullable=False)  # Foreign Key for client_id
+    log_id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    client_id = db.Column(db.String(64), db.ForeignKey('client_data.client_id'), nullable=False)
     command_initiator = db.Column(db.String(128), nullable=False)
-    commands_history = db.Column(db.Text)  # Command history, JSON or serialized text
+    commands_history = db.Column(db.Text)  # JSON or serialized text
     client = db.relationship('ClientData', backref=db.backref('commands_logs', lazy=True))
 
     def __repr__(self):
@@ -232,12 +233,13 @@ def client_registration():
         return jsonify({"error": "An error occurred while registering the client."}), 500
 
 
-
+command_initiator = ""
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
 @token_required
 def execute_command(decoded_token):
     global command_initiator
     command_initiator = decoded_token['user']['codename']
+    print(command_initiator)
     command_json = request.get_json()
     # print(command_json)
     # print(command_json["command"])
@@ -300,8 +302,30 @@ def getLiveClients():
 def tabs():
     return render_template('tab.html')
 
+def add_command_log(client_id, command_initiator, command, result):
+    # Prepare command history in JSON format
+    command_entry = {
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "command": command,
+        "result": result
+    }
+    
+    command_history_json = json.dumps(command_entry)
+    
+    # Create a new CommandsLog entry
+    new_log = CommandsLog(
+        client_id=client_id,
+        command_initiator=command_initiator,
+        commands_history=command_history_json
+    )
+    
+    # Add to database session and commit
+    db.session.add(new_log)
+    db.session.commit()
+
 @app.route('/execution-result-of-command-from-client', methods=['POST'])
 def receive_result():
+    global command_initiator
     try:
         # Check if the request contains JSON
         if not request.is_json:
@@ -309,8 +333,11 @@ def receive_result():
         data = request.get_json()
         print(data)
         # Check if 'result' key exists in the received JSON
-        if "result" not in data or "client_id" not in data:
-            return jsonify({"error": "'result' or client_id key is missing from the request"}), 400
+        if "result" not in data or "client_id" not in data or "command" not in data:
+            return jsonify({"error": "'result' or 'client_id' or 'command' key is missing from the request"}), 400
+        add_command_log(data["client_id"], command_initiator, data["command"], data["result"])
+        command_initiator="asfasfsadfsdfasdf------------------------------------------"
+        print(command_initiator)
         execution_result[data["client_id"]] = data["result"]
         print(f"Execution Result Received: {execution_result}")  # Log the result in the terminal
         return jsonify({"status": "Result received"}), 200
