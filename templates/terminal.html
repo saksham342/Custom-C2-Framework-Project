@@ -139,21 +139,18 @@
     </div>
 
     <div class="notification-bar" id="notification-bar"></div>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
+        const socket = io();
         let activeClientId = null;
         const liveClients = new Map();
 
-        // Fetch live clients periodically
-        async function fetchLiveClients() {
-            try {
-                const response = await fetch('/api/getLiveClients', { method: 'POST' });
-                const data = await response.json();
-                updateClientList(data.live_clients);
-            } catch (error) {
-                console.error('Error fetching live clients:', error);
+        // WebSocket event handlers
+        socket.on('client_list', (data) => {
+            if (data.type === 'full_update') {
+                updateClientList(data.clients);
             }
-        }
+        });
 
         function updateClientList(clients) {
             const newClientIds = new Set(clients.map(c => c.client_id));
@@ -272,24 +269,14 @@
             }, 3000);
         }
 
-        async function fetchResults() {
-            try {
-                const response = await fetch('/execution-result-to-show-in-web');
-                const data = await response.json();
-                for (const [client_id, result] of Object.entries(data)) {
-                    const terminal = document.querySelector(`.terminal[data-client-id="${client_id}"]`);
-                    if (terminal) {
-                        terminal.textContent += result + '\n';
-                        terminal.scrollTop = terminal.scrollHeight;
-                    }
-                }
-            } catch (error) {
-                console.error('Error fetching results:', error);
+        socket.on('command_result', (data) => {
+            const terminal = document.querySelector(`.terminal[data-client-id="${data.client_id}"]`);
+            if (terminal) {
+                terminal.textContent += `\n${data.result}\n`;
+                terminal.scrollTop = terminal.scrollHeight;
             }
-        }
+        });
 
-        // Initial setup
-        setInterval(fetchLiveClients, 3000);
         setInterval(fetchResults, 1000);
     </script>
 </body>
