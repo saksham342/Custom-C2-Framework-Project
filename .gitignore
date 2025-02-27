@@ -1,2 +1,2 @@
 .env
-instance/admin.db
+./instance/admin.db

@@ -111,25 +111,156 @@
         }
 
         /* Table Styles */
-        table {
+        #clientTable {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
 
-        th,
-        td {
+        #clientTable thead th,
+        #clientTable tbody td {
             padding: 10px;
             text-align: left;
             border-bottom: 1px solid #00ff88;
         }
 
-        th {
+        #clientTable thead th {
             background-color: #212121;
+            position: relative;
         }
 
-        td {
+        #clientTable tbody td {
             background-color: #1a1a1a;
+        }
+
+        /* Nickname Header Hover Effect */
+        .nickname-header {
+            position: relative;
+            display: inline-block;
+        }
+
+        .nickname-text {
+            transition: opacity 0.2s ease;
+        }
+
+        .edit-nickname-btn {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #00ff88;
+            color: #121212;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+        }
+
+        .nickname-header:hover .nickname-text {
+            opacity: 0;
+        }
+
+        .nickname-header:hover .edit-nickname-btn {
+            opacity: 1;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            position: relative;
+            background-color: #1a1a1a;
+            padding: 20px;
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            width: 300px;
+            text-align: center;
+        }
+
+        #newNicknameInput {
+            width: 93%;
+        }
+
+        #nicknameCloseButton {
+            padding: 1px 5px;
+        }
+
+        .modal-content h3 {
+            margin-bottom: 20px;
+        }
+
+        .modal-content select,
+        .modal-content input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            background-color: #121212;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 5px;
+        }
+
+        /* Shared Button Styles */
+        .modal-content .submit-btn,
+        .modal-content .close-modal {
+            padding: 10px 20px;
+            /* Consistent padding for both buttons */
+            border: none;
+            cursor: pointer;
+            background-color: #00ff88;
+            color: #121212;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .modal-content .submit-btn:hover {
+            background-color: #00cc70;
+        }
+
+        /* Specific Close Button Styles */
+        .modal-content .close-modal {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            font-size: 14px;
+            /* Smaller font size to reduce apparent size */
+            width: auto;
+            /* Prevents stretching */
+            min-width: 0;
+            /* Overrides any inherited minimum width */
+        }
+
+        .modal-content .close-modal:hover {
+            background-color: #ff5555;
+            /* Red hover effect for close button */
+        }
+
+        /* Scrollable Table */
+        #agents {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* Command Form */
@@ -176,7 +307,6 @@
 
         .log-entry span {
             color: #ff5555;
-            /* Error messages */
         }
 
         /* Status Panel */
@@ -197,16 +327,6 @@
 
         .status-box h3 {
             margin-bottom: 10px;
-        }
-
-
-        
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
         }
     </style>
 </head>
@@ -235,8 +355,6 @@
                     <li onclick="showSection('status')">System Status</li>
                     <a href="/super-admin-panel" id="superAdminLink" style="margin-left: 11px;">Go to Super Admin
                         Dashboard</a>
-
-
                 </ul>
             </div>
 
@@ -245,25 +363,22 @@
                 <!-- Agent Management -->
                 <div id="agents">
                     <h2>Connected Agents</h2>
-                    <table>
+                    <table id="clientTable">
                         <thead>
                             <tr>
-                                <th>ID</th>
-                                <th>IP Address</th>
-                                <th>Status</th>
+                                <th>Client ID</th>
+                                <th>
+                                    <span class="nickname-header">
+                                        <span class="nickname-text">Nickname</span>
+                                        <button class="edit-nickname-btn" onclick="openEditModal()">Edit</button>
+                                    </span>
+                                </th>
+                                <th>OS</th>
+                                <th>Last Active</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr>
-                                <td>1</td>
-                                <td>192.168.1.100</td>
-                                <td>Online</td>
-                            </tr>
-                            <tr>
-                                <td>2</td>
-                                <td>192.168.1.101</td>
-                                <td>Offline</td>
-                            </tr>
+                            <!-- Rows will be dynamically added here -->
                         </tbody>
                     </table>
                 </div>
@@ -320,14 +435,176 @@
         </div>
     </div>
 
-    
+    <!-- Edit Nickname Modal -->
+    <div id="editNicknameModal" class="modal">
+        <div class="modal-content">
+            <button class="close-modal" id="nicknameCloseButton" onclick="closeEditModal()">×</button>
+            <h3>Edit Nickname</h3>
+            <select id="clientIdSelect">
+                <!-- Client IDs will be dynamically added here -->
+            </select>
+            <input type="text" id="newNicknameInput" placeholder="New Nickname">
+            <button class="submit-btn" onclick="submitNewNickname()">Submit</button>
+        </div>
+    </div>
 
     <script>
+        // Ensure WebSocket connection is established (add this if not already present)
+        // const socket = io();
+
+        // WebSocket event handler for full client list update
+        socket.on('all_client_list', (data) => {
+            if (data.type === 'full_update') {
+                updateClientTable(data.clients);
+                populateClientIdDropdown(data.clients);
+            }
+        });
+
+        // WebSocket event handler for individual client activity (optional)
+        socket.on('client_activity', (data) => {
+            const clientId = data.client_id;
+            const newLastActive = data.last_active || new Date().toISOString();
+            const row = document.getElementById(`client-${clientId}`);
+            if (row) {
+                const lastActiveSpan = row.querySelector('.last-active');
+                lastActiveSpan.setAttribute('data-timestamp', newLastActive);
+            }
+        });
+
+        // Function to update the client table
+        function updateClientTable(clients) {
+            const clientTableBody = document.querySelector('#clientTable tbody');
+            clientTableBody.innerHTML = ''; // Clear existing rows
+
+            clients.forEach(client => {
+                // Convert the UTC timestamp to a readable local time
+                const lastActiveDate = new Date(client.last_active);
+                const fullTimestamp = lastActiveDate //.toLocaleString(); e.g., "9/15/2023, 12:34:56 PM"
+
+                // Create a new table row
+                const row = document.createElement('tr');
+                row.id = `client-${client.client_id}`;
+                row.innerHTML = `
+            <td>${client.client_id}</td>
+            <td>${client.nickname}</td>
+            <td>${client.os}</td>
+            <td>
+                <span 
+                    class="last-active" 
+                    data-timestamp="${client.last_active}" 
+                    title="${fullTimestamp}">
+                </span>
+            </td>
+        `;
+                clientTableBody.appendChild(row);
+            });
+
+            // Update the visible abbreviated time (e.g., "2 minutes ago")
+            updateLastActiveTimers();
+        }
+        function formatElapsedTime(elapsedSeconds) {
+            if (elapsedSeconds < 60) {
+                return `${elapsedSeconds} s ago`;
+            } else if (elapsedSeconds < 3600) {
+                const minutes = Math.floor(elapsedSeconds / 60);
+                return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+            } else if (elapsedSeconds < 86400) {
+                const hours = Math.floor(elapsedSeconds / 3600);
+                return `${hours} hour${hours > 1 ? 's' : ''} ago`;
+            } else {
+                const days = Math.floor(elapsedSeconds / 86400);
+                return `${days} day${days > 1 ? 's' : ''} ago`;
+            }
+        }
+
+        function updateLastActiveTimers() {
+            const now = new Date();
+            const lastActiveSpans = document.querySelectorAll('.last-active');
+
+            lastActiveSpans.forEach(span => {
+                const lastActiveStr = span.getAttribute('data-timestamp');
+                const lastActive = new Date(lastActiveStr);
+                const elapsedSeconds = Math.floor((now - lastActive) / 1000);
+                span.textContent = formatElapsedTime(elapsedSeconds);
+            });
+        }
+
+        // Update timers every second
+        setInterval(updateLastActiveTimers, 1000);
+
+        // Function to show/hide sections
         function showSection(section) {
             const sections = ['agents', 'logs', 'commands', 'status'];
             sections.forEach(s => {
                 document.getElementById(s).style.display = s === section ? 'block' : 'none';
             });
+        }
+
+        // Initialize the agents section as visible on page load
+        showSection('agents');
+
+        // Function to populate the client ID dropdown in the modal
+        function populateClientIdDropdown(clients) {
+            const select = document.getElementById('clientIdSelect');
+            const currentSelection = select.value; // Store the current selection before updating
+
+            select.innerHTML = ''; // Clear existing options
+
+            clients.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.client_id;
+                option.textContent = client.client_id;
+                select.appendChild(option);
+            });
+
+            // Restore the previous selection if it still exists in the new list
+            if (currentSelection && clients.some(client => client.client_id === currentSelection)) {
+                select.value = currentSelection;
+            } else {
+                select.value = ''; // Reset if the selected client is no longer in the list
+            }
+        }
+
+        // Function to open the edit nickname modal
+        function openEditModal() {
+            document.getElementById('editNicknameModal').style.display = 'flex';
+        }
+
+        // Function to close the edit nickname modal
+        function closeEditModal() {
+            document.getElementById('editNicknameModal').style.display = 'none';
+        }
+
+        // Function to submit the new nickname
+        function submitNewNickname() {
+            const clientId = document.getElementById('clientIdSelect').value;
+            const newNickname = document.getElementById('newNicknameInput').value;
+
+            if (!clientId || !newNickname) {
+                alert('Please select a client and enter a new nickname.');
+                return;
+            }
+
+            fetch('/api/editNickname', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ client_id: clientId, nickname: newNickname })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Nickname updated successfully!');
+                        document.getElementById('editNicknameModal').style.display = 'none';
+                    } else {
+                        alert('Failed to update nickname: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating nickname:', error);
+                    alert('An error occurred while updating the nickname.');
+                });
         }
     </script>
 </body>

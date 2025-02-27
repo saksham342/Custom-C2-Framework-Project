@@ -141,9 +141,6 @@ def validate_jwt(token):
         return None
 
 
-
-
-
 def token_required(f):
     """Decorator to enforce JWT authentication."""
     @wraps(f)
@@ -184,7 +181,7 @@ def dashboard(decoded_token):
 # Function to generate a random UUID with 6 characters
 def generate_client_id():
     random_uuid = ''.join(random.choices(string.ascii_letters + string.digits, k=6))
-    timestamp = datetime.datetime.utcnow()
+    timestamp = datetime.datetime.now()
     timestampForClientID = timestamp.strftime('%Y%m%d%H%M%S')
     return f"{random_uuid}-{timestampForClientID}"
 
@@ -217,7 +214,7 @@ def client_registration():
     client_id = generate_client_id()
 
     # Calculate the registration date (current UTC time)
-    reg_date = datetime.datetime.utcnow()
+    reg_date = datetime.datetime.now()
 
     # Save the new client data to the database
     new_client = ClientData(
@@ -267,7 +264,7 @@ def execute_command(decoded_token):
 
 def update_last_active_time(client):
     if client:
-        client.last_active = datetime.datetime.utcnow()  # Directly updating last_active field
+        client.last_active = datetime.datetime.now()  # Directly updating last_active field
         db.session.commit()
         return jsonify({"status": "updated"}), 200
     return jsonify({"error": "Client not found"}), 404
@@ -297,7 +294,7 @@ def background_thread():
             try:
             
                 clients = ClientData.query.all()  # Fetch all clients
-                threshold_time = datetime.datetime.utcnow() - timedelta(seconds=12)  # Set the threshold for recent activity
+                threshold_time = datetime.datetime.now() - timedelta(seconds=12)  # Set the threshold for recent activity
 
                 live_clients = [
                     {
@@ -313,16 +310,29 @@ def background_thread():
                     }
                     for client in clients if client.last_active and client.last_active >= threshold_time
                 ]
-                for client in clients:
-                    print(client.last_active)
-                    break
-                print(live_clients)
-                socketio.emit('client_list', {
+                all_clients = [
+                    {
+                        "client_id": client.client_id,
+                        "user": client.user,
+                        "nickname": client.nickname,
+                        "os": client.os,
+                        "ip": client.ip,
+                        "registered_at": str(client.registered_at),
+                        "last_active": str(client.last_active),
+                        "address": client.address
+
+                    }
+                    for client in clients
+                ]
+                socketio.emit('all_client_list', {
+                        "type": "full_update",
+                        "clients": all_clients
+                    })
+                socketio.emit('live_client_list', {
                         "type": "full_update",
                         "clients": live_clients
                     })
                 socketio.sleep(3)
-                print("success")
 
             except Exception as e:
                     print(f"Error in background thread: {e}")
@@ -341,7 +351,7 @@ def tabs():
 def add_command_log(client_id, command_initiator, command, result):
     # Prepare command history in JSON format
     command_entry = {
-        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "timestamp": datetime.datetime.now().isoformat(),
         "command": command,
         "result": result
     }
@@ -528,7 +538,41 @@ def deleteAdmin(decoded_token):
     except Exception as e:
         return jsonify({"error": f"An error occurred: {str(e)}"}), 500
 
-    
+
+
+@app.route("/api/editNickname", methods=["POST"])
+@token_required
+def editNickname(decoded_token):
+    """
+    Update the nickname of a client. Requires admin or superadmin privileges.
+    """
+    if decoded_token['user']['role'] not in ['admin', 'superadmin']:
+        return jsonify({"error": "Access forbidden"}), 403
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Invalid input. JSON data required."}), 400
+
+    client_id = data.get("client_id")
+    new_nickname = data.get("nickname")
+
+    if not client_id or not new_nickname or len(new_nickname.strip()) == 0:
+        return jsonify({"error": "Valid client_id and nickname are required."}), 400
+
+    try:
+        client = ClientData.query.filter_by(client_id=client_id).first()
+        if not client:
+            return jsonify({"error": "Client not found."}), 404
+
+        client.nickname = new_nickname.strip()
+        db.session.commit()
+        return jsonify({"success": "Nickname updated successfully."}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": f"An error occurred: {str(e)}"}), 500
+
+
 @app.route("/api/changeAdminPassword", methods=["POST"])
 @token_required
 def change_admin_password(decoded_token):
