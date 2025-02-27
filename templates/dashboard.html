@@ -328,6 +328,25 @@
         .status-box h3 {
             margin-bottom: 10px;
         }
+
+        /* Status Dot Styles */
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+
+        .status-dot.live {
+            background-color: green;
+            box-shadow: 0 0 5px green;
+        }
+
+        .status-dot.disconnected {
+            background-color: red;
+            box-shadow: 0 0 5px red;
+        }
     </style>
 </head>
 
@@ -374,7 +393,7 @@
                                     </span>
                                 </th>
                                 <th>OS</th>
-                                <th>Last Active</th>
+                                <th>Last Active Time</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -479,7 +498,7 @@
             clients.forEach(client => {
                 // Convert the UTC timestamp to a readable local time
                 const lastActiveDate = new Date(client.last_active);
-                const fullTimestamp = lastActiveDate //.toLocaleString(); e.g., "9/15/2023, 12:34:56 PM"
+                const fullTimestamp = lastActiveDate; // e.g., "9/15/2023, 12:34:56 PM"
 
                 // Create a new table row
                 const row = document.createElement('tr');
@@ -488,9 +507,10 @@
             <td>${client.client_id}</td>
             <td>${client.nickname}</td>
             <td>${client.os}</td>
-            <td>
+            <td> 
+                <span class="status-dot"></span>
                 <span 
-                    class="last-active" 
+                    class="last-active"
                     data-timestamp="${client.last_active}" 
                     title="${fullTimestamp}">
                 </span>
@@ -502,6 +522,7 @@
             // Update the visible abbreviated time (e.g., "2 minutes ago")
             updateLastActiveTimers();
         }
+
         function formatElapsedTime(elapsedSeconds) {
             if (elapsedSeconds < 60) {
                 return `${elapsedSeconds} s ago`;
@@ -526,6 +547,17 @@
                 const lastActive = new Date(lastActiveStr);
                 const elapsedSeconds = Math.floor((now - lastActive) / 1000);
                 span.textContent = formatElapsedTime(elapsedSeconds);
+
+                // Update status dot
+                const td = span.parentElement;
+                const statusDot = td.querySelector('.status-dot');
+                if (elapsedSeconds <= 7) {
+                    statusDot.classList.add('live');
+                    statusDot.classList.remove('disconnected');
+                } else {
+                    statusDot.classList.add('disconnected');
+                    statusDot.classList.remove('live');
+                }
             });
         }
 
