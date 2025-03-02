@@ -218,7 +218,6 @@
         .modal-content .submit-btn,
         .modal-content .close-modal {
             padding: 10px 20px;
-            /* Consistent padding for both buttons */
             border: none;
             cursor: pointer;
             background-color: #00ff88;
@@ -238,16 +237,12 @@
             top: 5px;
             right: 5px;
             font-size: 14px;
-            /* Smaller font size to reduce apparent size */
             width: auto;
-            /* Prevents stretching */
             min-width: 0;
-            /* Overrides any inherited minimum width */
         }
 
         .modal-content .close-modal:hover {
             background-color: #ff5555;
-            /* Red hover effect for close button */
         }
 
         /* Scrollable Table */
@@ -347,6 +342,69 @@
             background-color: red;
             box-shadow: 0 0 5px red;
         }
+
+        /* Malware Actions Modal */
+        #malwareActionsModal {
+            display: none;
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: center;
+        }
+
+        #malwareActionsModal .modal-content {
+            width: 400px;
+            padding: 20px;
+            background-color: #1a1a1a;
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        #malwareActionsModal h3 {
+            margin-bottom: 20px;
+        }
+
+        #malwareActionsModal button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #00ff88;
+            color: #121212;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        #malwareActionsModal button:hover {
+            background-color: #00cc70;
+        }
+
+        #malwareActionsModal .close-modal {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background-color: transparent;
+            color: #fff;
+            border: none;
+            width: auto;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #malwareActionsModal .close-modal:hover {
+            transform: scale(1.5);
+            color: #ff5555;
+            background-color: transparent;
+            transition: 200ms;
+        }
     </style>
 </head>
 
@@ -389,11 +447,13 @@
                                 <th>
                                     <span class="nickname-header">
                                         <span class="nickname-text">Nickname</span>
-                                        <button class="edit-nickname-btn" onclick="openEditModal()">Edit</button>
+                                        <button class="edit-nickname-btn"
+                                            onclick="openNicknameEditModal()">Edit</button>
                                     </span>
                                 </th>
                                 <th>OS</th>
                                 <th>Last Active Time</th>
+                                <th>More Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -467,6 +527,18 @@
         </div>
     </div>
 
+    <!-- Malware Actions Modal -->
+    <div id="malwareActionsModal" class="modal">
+        <div class="modal-content">
+            <h3>Malware Simulation Actions</h3><button class="close-modal"
+                onclick="closeMalwareActionsModal()">×</button>
+            <button onclick="simulateKeylogger()">Simulate Keylogger</button>
+            <button onclick="simulateRansomware()">Simulate Ransomware</button>
+            <button onclick="simulateDataExfiltration()">Simulate Data Exfiltration</button>
+            <button onclick="simulateReverseShell()">Simulate Reverse Shell</button>
+        </div>
+    </div>
+
     <script>
         // Ensure WebSocket connection is established (add this if not already present)
         // const socket = io();
@@ -514,6 +586,25 @@
                     data-timestamp="${client.last_active}" 
                     title="${fullTimestamp}">
                 </span>
+            </td>
+            <td>
+                <button 
+                    onclick="performActions('${client.client_id}')" 
+                    style="
+                        padding: 4px 8px;
+                        background-color: #007bff;
+                        color: #fff;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        transition: background-color 0.3s ease;
+                    "
+                    onmouseover="this.style.backgroundColor='#08470a'; this.style.transform='scale(1.1)';"
+                    onmouseout="this.style.backgroundColor='#007bff'; this.style.transform='scale(1.0)';"
+                >
+                    Perform actions
+                </button>
             </td>
         `;
                 clientTableBody.appendChild(row);
@@ -598,12 +689,12 @@
         }
 
         // Function to open the edit nickname modal
-        function openEditModal() {
+        function openNicknameEditModal() {
             document.getElementById('editNicknameModal').style.display = 'flex';
         }
 
         // Function to close the edit nickname modal
-        function closeEditModal() {
+        function closeNicknameEditModal() {
             document.getElementById('editNicknameModal').style.display = 'none';
         }
 
@@ -637,6 +728,62 @@
                     console.error('Error updating nickname:', error);
                     alert('An error occurred while updating the nickname.');
                 });
+        }
+
+        // Function to open the malware actions modal
+        function performActions(clientId) {
+            const modal = document.getElementById('malwareActionsModal');
+            modal.style.display = 'flex';
+
+            // Initial state: size is 0 and opacity is 0
+            modal.style.transform = 'scale(0)';
+            modal.style.opacity = '0';
+
+            // Set up the animation duration and easing
+            const duration = 200; // Animation duration in milliseconds
+            const startTime = performance.now(); // Get the start time
+
+            // Function to animate the modal
+            function animateModal(currentTime) {
+                const timeElapsed = currentTime - startTime;
+                const progress = Math.min(timeElapsed / duration, 1); // Ensure the progress doesn't exceed 1
+
+                // Apply scale and opacity based on the progressss
+                modal.style.transform = `scale(${progress})`;
+                modal.style.opacity = progress;
+
+                // If animation is not complete, request the next frame
+                if (progress < 1) {
+                    requestAnimationFrame(animateModal);
+                }
+            }
+
+            // Start the animation
+            requestAnimationFrame(animateModal);
+        }
+
+
+        // Function to close the malware actions modal
+        function closeMalwareActionsModal() {
+            const modal = document.getElementById('malwareActionsModal');
+            modal.style.display = 'none';
+        }
+
+        // Malware Simulation Functions
+        function simulateKeylogger() {
+            alert('Keylogger simulation initiated!');
+        }
+
+        function simulateRansomware() {
+            alert('Ransomware simulation initiated!');
+        }
+
+        function simulateDataExfiltration() {
+            alert('Data exfiltration simulation initiated!');
+        }
+
+        function simulateReverseShell() {
+            alert('Reverse shell simulation initiated!');
         }
     </script>
 </body>
