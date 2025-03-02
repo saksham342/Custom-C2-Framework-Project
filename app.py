@@ -163,11 +163,9 @@ def home():
 
 
 
-
 @app.route("/login")
 def login():
     return render_template("login.html")
-
 
 
 
@@ -318,6 +316,17 @@ def save_screenshot():
 
     return f"Screenshot saved as {filename}", 200
 
+@app.route('/api/download-files-from-client', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return 'No file part'
+
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file'
+    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
+    file.save(file_path)
+    return f'File uploaded successfully: {file.filename}'
 
 def background_thread():
     while True:
