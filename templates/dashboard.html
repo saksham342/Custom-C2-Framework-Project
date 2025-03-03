@@ -358,12 +358,28 @@
         }
 
         #malwareActionsModal .modal-content {
-            width: 400px;
+            width: 900px;
+            /* Increased width for two-panel layout */
             padding: 20px;
             background-color: #1a1a1a;
             border: 1px solid #00ff88;
             border-radius: 5px;
-            text-align: center;
+            display: flex;
+            /* Flexbox for two-panel layout */
+            flex-direction: row;
+            text-align: left;
+            /* Align text left for readability */
+        }
+
+        #malwareActionsModal .buttons-panel {
+            width: 40%;
+            padding-right: 20px;
+            border-right: 1px solid #00ff88;
+        }
+
+        #malwareActionsModal .content-panel {
+            width: 60%;
+            padding-left: 20px;
         }
 
         #malwareActionsModal h3 {
@@ -373,7 +389,7 @@
         #malwareActionsModal button {
             display: block;
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             margin-bottom: 10px;
             background-color: #00ff88;
             color: #121212;
@@ -381,6 +397,7 @@
             border-radius: 5px;
             cursor: pointer;
             transition: background-color 0.3s;
+            font-size: 14px;
         }
 
         #malwareActionsModal button:hover {
@@ -404,6 +421,134 @@
             color: #ff5555;
             background-color: transparent;
             transition: 200ms;
+        }
+
+        /* Content Panel Sections */
+        .content-section {
+            display: none;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        .content-section input,
+        .content-section button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #121212;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 5px;
+        }
+
+        .content-section button {
+            background-color: #00ff88;
+            color: #121212;
+            cursor: pointer;
+        }
+
+        .content-section button:hover {
+            background-color: #00cc70;
+        }
+
+        /* Agent Info Styles */
+        .agent-info {
+            text-align: left;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #121212;
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+            display: none;
+        }
+
+        .agent-info p {
+            margin: 5px 0;
+            font-size: 13px;
+        }
+
+        /* Switch Styles for Send File */
+        .switch-container {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 20px;
+            margin-right: 10px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+            border-radius: 20px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 2px;
+            bottom: 2px;
+            background-color: white;
+            transition: 0.4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: #00ff88;
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(20px);
+        }
+
+        .switch-label {
+            font-size: 14px;
+            color: #00ff88;
+        }
+
+        /* Upload Area Styles */
+        .upload-area {
+            border: 2px dashed #00ff88;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #121212;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .upload-area:hover {
+            background-color: #1a1a1a;
+        }
+
+        .upload-area input[type="file"] {
+            display: none;
+        }
+
+        #selectedFiles {
+            margin-top: 10px;
+            color: #00ff88;
         }
     </style>
 </head>
@@ -517,7 +662,7 @@
     <!-- Edit Nickname Modal -->
     <div id="editNicknameModal" class="modal">
         <div class="modal-content">
-            <button class="close-modal" id="nicknameCloseButton" onclick="closeEditModal()">×</button>
+            <button class="close-modal" id="nicknameCloseButton" onclick="closeNicknameEditModal()">×</button>
             <h3>Edit Nickname</h3>
             <select id="clientIdSelect">
                 <!-- Client IDs will be dynamically added here -->
@@ -530,28 +675,106 @@
     <!-- Malware Actions Modal -->
     <div id="malwareActionsModal" class="modal">
         <div class="modal-content">
-            <h3>Malware Simulation Actions</h3><button class="close-modal"
-                onclick="closeMalwareActionsModal()">×</button>
-            <button onclick="simulateKeylogger()">Simulate Keylogger</button>
-            <button onclick="simulateRansomware()">Simulate Ransomware</button>
-            <button onclick="simulateDataExfiltration()">Simulate Data Exfiltration</button>
-            <button onclick="simulateReverseShell()">Simulate Reverse Shell</button>
+            <div class="buttons-panel">
+                <h3>Malware Control Panel</h3>
+                <button onclick="showSectionInPanel('agentInfo')">Agent Information</button>
+                <button onclick="showSectionInPanel('sendFile')">Send File</button>
+                <button onclick="showSectionInPanel('persistAgent')">Establish Persistence</button>
+                <button onclick="showSectionInPanel('killAgent')">Kill Agent</button>
+                <button onclick="showSectionInPanel('keylogger')">Run Keylogger</button>
+                <button onclick="showSectionInPanel('ransomware')">Deploy Ransomware</button>
+                <button onclick="showSectionInPanel('dataExfil')">Exfiltrate Data</button>
+                <button onclick="showSectionInPanel('reverseShell')">Open Reverse Shell</button>
+                <button onclick="showSectionInPanel('screenshot')">Capture Screenshot</button>
+                <button onclick="showSectionInPanel('audio')">Record Audio</button>
+                <button class="close-modal" onclick="closeMalwareActionsModal()">×</button>
+            </div>
+            <div class="content-panel">
+                <div id="agentInfo" class="content-section">
+                    <h3>Agent Information</h3>
+                    <div id="agentInfoDetails"></div>
+                </div>
+                <div id="sendFile" class="content-section">
+                    <h3>Send File</h3>
+                    <div class="switch-container">
+                        <label class="switch">
+                            <input type="checkbox" id="uploadSwitch">
+                            <span class="slider"></span>
+                        </label>
+                        <span class="switch-label" id="uploadLabel">Upload from Server</span>
+                    </div>
+                    <div id="serverUpload" class="upload-option">
+                        <input type="text" id="filePathInput" placeholder="Enter file path on server">
+                    </div>
+                    <div id="fileUpload" class="upload-option" style="display: none;">
+                        <div class="upload-area" id="dropArea">
+                            Drag & Drop files here or click to select
+                            <input type="file" id="fileInput" multiple>
+                        </div>
+                        <div id="selectedFiles"></div> <!-- Area to display selected file names -->
+                    </div>
+                    <button onclick="sendFile()">Send</button>
+                </div>
+                <div id="persistAgent" class="content-section">
+                    <h3>Establish Persistence</h3>
+                    <p>Click below to establish persistence.</p>
+                    <button onclick="persistAgent()">Confirm</button>
+                </div>
+                <div id="killAgent" class="content-section">
+                    <h3>Kill Agent</h3>
+                    <p>Warning: This will terminate the agent.</p>
+                    <button onclick="killAgent()">Kill</button>
+                </div>
+                <div id="keylogger" class="content-section">
+                    <h3>Run Keylogger</h3>
+                    <p>Activate keylogger on the agent.</p>
+                    <button onclick="simulateKeylogger()">Start</button>
+                </div>
+                <div id="ransomware" class="content-section">
+                    <h3>Deploy Ransomware</h3>
+                    <p>Deploy ransomware on the agent.</p>
+                    <button onclick="simulateRansomware()">Deploy</button>
+                </div>
+                <div id="dataExfil" class="content-section">
+                    <h3>Exfiltrate Data</h3>
+                    <p>Initiate data exfiltration.</p>
+                    <button onclick="simulateDataExfiltration()">Start</button>
+                </div>
+                <div id="reverseShell" class="content-section">
+                    <h3>Open Reverse Shell</h3>
+                    <p>Open a reverse shell to the agent.</p>
+                    <button onclick="simulateReverseShell()">Open</button>
+                </div>
+                <div id="screenshot" class="content-section">
+                    <h3>Capture Screenshot</h3>
+                    <p>Capture a screenshot from the agent.</p>
+                    <button onclick="takeScreenshot()">Capture</button>
+                </div>
+                <div id="audio" class="content-section">
+                    <h3>Record Audio</h3>
+                    <input type="number" id="audioDuration" placeholder="Duration (seconds)">
+                    <button onclick="recordAudio()">Record</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        // Ensure WebSocket connection is established (add this if not already present)
-        // const socket = io();
+        let currentClientId = null;
+        let clientsData = [];
 
         // WebSocket event handler for full client list update
+        // const socket = io();
+        // Uncomment the above line and set up your WebSocket connection if not already done
+
         socket.on('all_client_list', (data) => {
             if (data.type === 'full_update') {
+                clientsData = data.clients;
                 updateClientTable(data.clients);
                 populateClientIdDropdown(data.clients);
             }
         });
 
-        // WebSocket event handler for individual client activity (optional)
         socket.on('client_activity', (data) => {
             const clientId = data.client_id;
             const newLastActive = data.last_active || new Date().toISOString();
@@ -562,55 +785,47 @@
             }
         });
 
-        // Function to update the client table
         function updateClientTable(clients) {
             const clientTableBody = document.querySelector('#clientTable tbody');
-            clientTableBody.innerHTML = ''; // Clear existing rows
+            clientTableBody.innerHTML = '';
 
             clients.forEach(client => {
-                // Convert the UTC timestamp to a readable local time
                 const lastActiveDate = new Date(client.last_active);
-                const fullTimestamp = lastActiveDate; // e.g., "9/15/2023, 12:34:56 PM"
+                const fullTimestamp = lastActiveDate;
 
-                // Create a new table row
                 const row = document.createElement('tr');
                 row.id = `client-${client.client_id}`;
                 row.innerHTML = `
-            <td>${client.client_id}</td>
-            <td>${client.nickname}</td>
-            <td>${client.os}</td>
-            <td> 
-                <span class="status-dot"></span>
-                <span 
-                    class="last-active"
-                    data-timestamp="${client.last_active}" 
-                    title="${fullTimestamp}">
-                </span>
-            </td>
-            <td>
-                <button 
-                    onclick="performActions('${client.client_id}')" 
-                    style="
-                        padding: 4px 8px;
-                        background-color: #007bff;
-                        color: #fff;
-                        border: none;
-                        border-radius: 4px;
-                        cursor: pointer;
-                        font-size: 14px;
-                        transition: background-color 0.3s ease;
-                    "
-                    onmouseover="this.style.backgroundColor='#08470a'; this.style.transform='scale(1.1)';"
-                    onmouseout="this.style.backgroundColor='#007bff'; this.style.transform='scale(1.0)';"
-                >
-                    Perform actions
-                </button>
-            </td>
-        `;
+                    <td>${client.client_id}</td>
+                    <td>${client.nickname}</td>
+                    <td>${client.os}</td>
+                    <td> 
+                        <span class="status-dot"></span>
+                        <span class="last-active" data-timestamp="${client.last_active}" title="${fullTimestamp}"></span>
+                    </td>
+                    <td>
+                        <button 
+                            onclick="performActions('${client.client_id}')" 
+                            style="
+                                padding: 4px 8px;
+                                background-color: #007bff;
+                                color: #fff;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: pointer;
+                                font-size: 14px;
+                                transition: background-color 0.3s ease;
+                            "
+                            onmouseover="this.style.backgroundColor='#08470a'; this.style.transform='scale(1.1)';"
+                            onmouseout="this.style.backgroundColor='#007bff'; this.style.transform='scale(1.0)';"
+                        >
+                            Perform actions
+                        </button>
+                    </td>
+                `;
                 clientTableBody.appendChild(row);
             });
 
-            // Update the visible abbreviated time (e.g., "2 minutes ago")
             updateLastActiveTimers();
         }
 
@@ -639,7 +854,6 @@
                 const elapsedSeconds = Math.floor((now - lastActive) / 1000);
                 span.textContent = formatElapsedTime(elapsedSeconds);
 
-                // Update status dot
                 const td = span.parentElement;
                 const statusDot = td.querySelector('.status-dot');
                 if (elapsedSeconds <= 7) {
@@ -652,10 +866,8 @@
             });
         }
 
-        // Update timers every second
         setInterval(updateLastActiveTimers, 1000);
 
-        // Function to show/hide sections
         function showSection(section) {
             const sections = ['agents', 'logs', 'commands', 'status'];
             sections.forEach(s => {
@@ -663,15 +875,13 @@
             });
         }
 
-        // Initialize the agents section as visible on page load
         showSection('agents');
 
-        // Function to populate the client ID dropdown in the modal
         function populateClientIdDropdown(clients) {
             const select = document.getElementById('clientIdSelect');
-            const currentSelection = select.value; // Store the current selection before updating
+            const currentSelection = select.value;
 
-            select.innerHTML = ''; // Clear existing options
+            select.innerHTML = '';
 
             clients.forEach(client => {
                 const option = document.createElement('option');
@@ -680,25 +890,21 @@
                 select.appendChild(option);
             });
 
-            // Restore the previous selection if it still exists in the new list
             if (currentSelection && clients.some(client => client.client_id === currentSelection)) {
                 select.value = currentSelection;
             } else {
-                select.value = ''; // Reset if the selected client is no longer in the list
+                select.value = '';
             }
         }
 
-        // Function to open the edit nickname modal
         function openNicknameEditModal() {
             document.getElementById('editNicknameModal').style.display = 'flex';
         }
 
-        // Function to close the edit nickname modal
         function closeNicknameEditModal() {
             document.getElementById('editNicknameModal').style.display = 'none';
         }
 
-        // Function to submit the new nickname
         function submitNewNickname() {
             const clientId = document.getElementById('clientIdSelect').value;
             const newNickname = document.getElementById('newNicknameInput').value;
@@ -730,60 +936,266 @@
                 });
         }
 
-        // Function to open the malware actions modal
         function performActions(clientId) {
+            currentClientId = clientId;
             const modal = document.getElementById('malwareActionsModal');
             modal.style.display = 'flex';
+            showSectionInPanel('agentInfo'); // Show Agent Info by default
 
-            // Initial state: size is 0 and opacity is 0
             modal.style.transform = 'scale(0)';
             modal.style.opacity = '0';
 
-            // Set up the animation duration and easing
-            const duration = 200; // Animation duration in milliseconds
-            const startTime = performance.now(); // Get the start time
+            const duration = 200;
+            const startTime = performance.now();
 
-            // Function to animate the modal
             function animateModal(currentTime) {
                 const timeElapsed = currentTime - startTime;
-                const progress = Math.min(timeElapsed / duration, 1); // Ensure the progress doesn't exceed 1
+                const progress = Math.min(timeElapsed / duration, 1);
 
-                // Apply scale and opacity based on the progressss
                 modal.style.transform = `scale(${progress})`;
                 modal.style.opacity = progress;
 
-                // If animation is not complete, request the next frame
                 if (progress < 1) {
                     requestAnimationFrame(animateModal);
                 }
             }
 
-            // Start the animation
             requestAnimationFrame(animateModal);
         }
 
-
-        // Function to close the malware actions modal
         function closeMalwareActionsModal() {
             const modal = document.getElementById('malwareActionsModal');
             modal.style.display = 'none';
         }
 
-        // Malware Simulation Functions
+        function showSectionInPanel(sectionId) {
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => {
+                section.classList.remove('active');
+            });
+            const activeSection = document.getElementById(sectionId);
+            activeSection.classList.add('active');
+
+            if (sectionId === 'agentInfo') {
+                showAgentInfo();
+            } else if (sectionId === 'sendFile') {
+                setupFileUpload();
+            }
+        }
+
+        function setupFileUpload() {
+            const uploadSwitch = document.getElementById('uploadSwitch');
+            const uploadLabel = document.getElementById('uploadLabel');
+            const serverUpload = document.getElementById('serverUpload');
+            const fileUpload = document.getElementById('fileUpload');
+            const dropArea = document.getElementById('dropArea');
+            const fileInput = document.getElementById('fileInput');
+            const selectedFilesDiv = document.getElementById('selectedFiles');
+
+            // Toggle between server and file upload options
+            uploadSwitch.addEventListener('change', () => {
+                const isFileUpload = uploadSwitch.checked;
+                uploadLabel.textContent = isFileUpload ? 'Upload from Files' : 'Upload from Server';
+                serverUpload.style.display = isFileUpload ? 'none' : 'block';
+                fileUpload.style.display = isFileUpload ? 'block' : 'none';
+            });
+
+            // Trigger file input click when upload area is clicked
+            dropArea.addEventListener('click', () => fileInput.click());
+
+            // Drag-and-drop event handlers
+            dropArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropArea.style.backgroundColor = '#1a1a1a'; // Visual feedback
+            });
+
+            dropArea.addEventListener('dragleave', () => {
+                dropArea.style.backgroundColor = '#121212';
+            });
+
+            dropArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropArea.style.backgroundColor = '#121212';
+                fileInput.files = e.dataTransfer.files; // Set dropped files to file input
+                displaySelectedFiles(fileInput.files); // Display file names
+            });
+
+            // File input change event (when files are selected via dialog)
+            fileInput.addEventListener('change', () => {
+                displaySelectedFiles(fileInput.files); // Display file names
+            });
+
+            // Function to display selected file names
+            function displaySelectedFiles(files) {
+                selectedFilesDiv.innerHTML = ''; // Clear previous content
+                if (files.length > 0) {
+                    const fileList = document.createElement('ul');
+                    for (let i = 0; i < files.length; i++) {
+                        const li = document.createElement('li');
+                        li.textContent = files[i].name; // Add each file name as a list item
+                        fileList.appendChild(li);
+                    }
+                    selectedFilesDiv.appendChild(fileList);
+                } else {
+                    selectedFilesDiv.textContent = 'No files selected';
+                }
+            }
+        }
+
+        // Ensure this function is called when the "Send File" section is shown
+        function showSectionInPanel(sectionId) {
+            const sections = document.querySelectorAll('.content-section');
+            sections.forEach(section => section.classList.remove('active'));
+            const activeSection = document.getElementById(sectionId);
+            activeSection.classList.add('active');
+
+            if (sectionId === 'sendFile') {
+                setupFileUpload(); // Setup file upload handlers when section is activated
+            }
+        }
+
+        function showAgentInfo() {
+            const agentInfoDetails = document.getElementById('agentInfoDetails');
+            const client = clientsData.find(c => c.client_id === currentClientId);
+
+            if (client) {
+                const lastActive = new Date(client.last_active);
+                agentInfoDetails.innerHTML = `
+                    <p><strong>Client ID:</strong> ${client.client_id}</p>
+                    <p><strong>Nickname:</strong> ${client.nickname}</p>
+                    <p><strong>OS:</strong> ${client.os}</p>
+                    <p><strong>Username:</strong> ${client.user}</p>
+                    <p><strong>Public IP:</strong> ${client.ip}</p>
+                    <p><strong>Registered At:</strong> ${client.registered_at}</p>
+                    <p><strong>Geo Location:</strong> ${client.address}</p>
+                    <p><strong>Last Active:</strong> ${lastActive.toLocaleString()}</p>
+                    <p><strong>Status:</strong> ${Math.floor((new Date() - lastActive) / 1000) <= 7 ? 'Online' : 'Offline'}</p>
+                `;
+            } else {
+                agentInfoDetails.innerHTML = '<p>Agent information not available</p>';
+            }
+        }
+
+        function sendFile() {
+            const uploadSwitch = document.getElementById('uploadSwitch');
+            if (!uploadSwitch.checked) {
+                // Upload from Server
+                const filePath = document.getElementById('filePathInput').value;
+                if (filePath) {
+                    fetch('/api/uploadFromServer', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ client_id: currentClientId, file_path: filePath })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('File path sent successfully!');
+                                logAction(`Sent file path "${filePath}" to ${currentClientId}`);
+                                document.getElementById('filePathInput').value = '';
+                            } else {
+                                alert('Failed to send file path: ' + data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error sending file path:', error);
+                            alert('An error occurred while sending the file path.');
+                        });
+                } else {
+                    alert('Please enter a file path.');
+                }
+            } else {
+                // Upload from Files
+                const fileInput = document.getElementById('fileInput');
+                const files = fileInput.files;
+                if (files.length > 0) {
+                    const formData = new FormData();
+                    formData.append('client_id', currentClientId);
+                    for (let i = 0; i < files.length; i++) {
+                        formData.append('files', files[i]);
+                    }
+                    fetch('/api/uploadFromFiles', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                alert('Files uploaded successfully!');
+                                logAction(`Uploaded ${files.length} files to ${currentClientId}`);
+                                fileInput.value = ''; // Reset file input
+                            } else {
+                                alert('Failed to upload files: ' + data.message);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error uploading files:', error);
+                            alert('An error occurred while uploading files.');
+                        });
+                } else {
+                    alert('Please select at least one file.');
+                }
+            }
+        }
+
+        function persistAgent() {
+            if (confirm(`Establish persistence on agent ${currentClientId}?`)) {
+                alert(`Persistence established on agent ${currentClientId}`);
+                logAction(`Persistence established on ${currentClientId}`);
+            }
+        }
+
+        function killAgent() {
+            if (confirm(`Are you sure you want to kill agent ${currentClientId}?`)) {
+                alert(`Agent ${currentClientId} has been terminated`);
+                logAction(`Killed agent ${currentClientId}`);
+            }
+        }
+
         function simulateKeylogger() {
-            alert('Keylogger simulation initiated!');
+            alert(`Keylogger activated on agent ${currentClientId}`);
+            logAction(`Started keylogger on ${currentClientId}`);
         }
 
         function simulateRansomware() {
-            alert('Ransomware simulation initiated!');
+            alert(`Ransomware deployed on agent ${currentClientId}`);
+            logAction(`Deployed ransomware on ${currentClientId}`);
         }
 
         function simulateDataExfiltration() {
-            alert('Data exfiltration simulation initiated!');
+            alert(`Data exfiltration initiated from agent ${currentClientId}`);
+            logAction(`Initiated data exfiltration from ${currentClientId}`);
         }
 
         function simulateReverseShell() {
-            alert('Reverse shell simulation initiated!');
+            alert(`Reverse shell opened on agent ${currentClientId}`);
+            logAction(`Opened reverse shell on ${currentClientId}`);
+        }
+
+        function takeScreenshot() {
+            alert(`Screenshot captured from agent ${currentClientId}`);
+            logAction(`Captured screenshot from ${currentClientId}`);
+        }
+
+        function recordAudio() {
+            const duration = document.getElementById('audioDuration').value;
+            if (duration && !isNaN(duration)) {
+                alert(`Recording audio for ${duration} seconds on agent ${currentClientId}`);
+                logAction(`Started ${duration}s audio recording on ${currentClientId}`);
+                document.getElementById('audioDuration').value = '';
+            } else {
+                alert('Please enter a valid duration in seconds.');
+            }
+        }
+
+        function logAction(message) {
+            const logsDiv = document.querySelector('.logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry';
+            logEntry.textContent = `[INFO] ${message} - ${new Date().toLocaleTimeString()}`;
+            logsDiv.insertBefore(logEntry, logsDiv.firstChild);
         }
     </script>
 </body>
