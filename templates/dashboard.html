@@ -548,7 +548,9 @@
 
         #selectedFiles {
             margin-top: 10px;
-            color: #00ff88;
+            color: #ffffff;
+            text-decoration: underline;
+            cursor: pointer;
         }
     </style>
 </head>
@@ -677,16 +679,16 @@
         <div class="modal-content">
             <div class="buttons-panel">
                 <h3>Malware Control Panel</h3>
-                <button onclick="showSectionInPanel('agentInfo')">Agent Information</button>
-                <button onclick="showSectionInPanel('sendFile')">Send File</button>
-                <button onclick="showSectionInPanel('persistAgent')">Establish Persistence</button>
-                <button onclick="showSectionInPanel('killAgent')">Kill Agent</button>
-                <button onclick="showSectionInPanel('keylogger')">Run Keylogger</button>
-                <button onclick="showSectionInPanel('ransomware')">Deploy Ransomware</button>
-                <button onclick="showSectionInPanel('dataExfil')">Exfiltrate Data</button>
-                <button onclick="showSectionInPanel('reverseShell')">Open Reverse Shell</button>
-                <button onclick="showSectionInPanel('screenshot')">Capture Screenshot</button>
-                <button onclick="showSectionInPanel('audio')">Record Audio</button>
+                <button onclick="showSectionInPanelForAgentActions('agentInfo')">Agent Information</button>
+                <button onclick="showSectionInPanelForAgentActions('sendFile')">Send File</button>
+                <button onclick="showSectionInPanelForAgentActions('persistAgent')">Establish Persistence</button>
+                <button onclick="showSectionInPanelForAgentActions('killAgent')">Kill Agent</button>
+                <button onclick="showSectionInPanelForAgentActions('keylogger')">Run Keylogger</button>
+                <button onclick="showSectionInPanelForAgentActions('ransomware')">Deploy Ransomware</button>
+                <button onclick="showSectionInPanelForAgentActions('dataExfil')">Exfiltrate Data</button>
+                <button onclick="showSectionInPanelForAgentActions('reverseShell')">Open Reverse Shell</button>
+                <button onclick="showSectionInPanelForAgentActions('screenshot')">Capture Screenshot</button>
+                <button onclick="showSectionInPanelForAgentActions('audio')">Record Audio</button>
                 <button class="close-modal" onclick="closeMalwareActionsModal()">×</button>
             </div>
             <div class="content-panel">
@@ -940,7 +942,7 @@
             currentClientId = clientId;
             const modal = document.getElementById('malwareActionsModal');
             modal.style.display = 'flex';
-            showSectionInPanel('agentInfo'); // Show Agent Info by default
+            showSectionInPanelForAgentActions('agentInfo'); // Show Agent Info by default
 
             modal.style.transform = 'scale(0)';
             modal.style.opacity = '0';
@@ -968,7 +970,7 @@
             modal.style.display = 'none';
         }
 
-        function showSectionInPanel(sectionId) {
+        function showSectionInPanelForAgentActions(sectionId) {
             const sections = document.querySelectorAll('.content-section');
             sections.forEach(section => {
                 section.classList.remove('active');
@@ -1042,17 +1044,6 @@
             }
         }
 
-        // Ensure this function is called when the "Send File" section is shown
-        function showSectionInPanel(sectionId) {
-            const sections = document.querySelectorAll('.content-section');
-            sections.forEach(section => section.classList.remove('active'));
-            const activeSection = document.getElementById(sectionId);
-            activeSection.classList.add('active');
-
-            if (sectionId === 'sendFile') {
-                setupFileUpload(); // Setup file upload handlers when section is activated
-            }
-        }
 
         function showAgentInfo() {
             const agentInfoDetails = document.getElementById('agentInfoDetails');

