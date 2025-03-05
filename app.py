@@ -26,7 +26,7 @@ command_to_execute = {}
 thread = None
 thread_lock = Lock()
 active_clients = {}
-
+original_server_file_path_for_file_to_send_to_client=""
 app = Flask(__name__)
 
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -374,26 +374,73 @@ def upload_from_files():
     })
 
 
+@app.route('/api/uploadFromServer', methods=['POST'])
+def upload_from_server():
+    global original_server_file_path_for_file_to_send_to_client
+    try:
+        data = request.get_json()
+        client_id = data.get('client_id')
+        original_server_file_path_for_file_to_send_to_client = data.get('file_path')
+        print(original_server_file_path_for_file_to_send_to_client)
+        if not client_id or not original_server_file_path_for_file_to_send_to_client:
+            return jsonify({"success": False, "message": "Client ID and file path are required."}), 400
+
+        # Assuming the file exists at the provided file_path
+        if not os.path.exists(original_server_file_path_for_file_to_send_to_client):
+            return jsonify({"success": False, "message": "File path does not exist."}), 400
+
+        # Create a command object with the full file path
+        command = {
+            "command": "UploadFromServer",
+            "client_id": client_id,
+            "server_file_path": original_server_file_path_for_file_to_send_to_client  # Using the full file path here
+        }
+        print("aaaaaaaaa",command)
+        # Store the command in the command_to_execute variable (acting as in-memory storage)
+        command_to_execute[client_id] = json.dumps(command)
+
+        # Returning the response with the command object
+        return jsonify({"success": True, "command": command})
+
+    except Exception as e:
+        print(e)
+        return jsonify({"success": False, "message": "An error occurred while processing the request."}), 500
+
+
+
 @app.route("/api/upload-file-to-client", methods=["GET"])
 def upload_file_to_client():
+    global original_server_file_path_for_file_to_send_to_client
     try:
         # Extract client_id and filename from request parameters
         client_id = request.args.get("clientID")
         filename = request.args.get("filename")
-        if not client_id or not filename:
-            return jsonify({"error": "Missing clientID or filename"}), 400
+        server_file_path_from_client = request.args.get("server_file_path_from_client")
+        if not client_id:
+            return jsonify({"error": "Missing clientID"}), 400
+        if filename and server_file_path_from_client:
+            return jsonify({"error": "Invalid request! Cannot contain filename and server's path"}), 400
+        if filename and not server_file_path_from_client:
+            # Construct the full filename
+            full_filename = f"{client_id}-{filename}"
+            print(full_filename)
+            file_path = os.path.join(BASE_DIR,"uploads/FILES_TO_SEND_TO_CLIENT", full_filename)
+            print(file_path)
+            # Check if file exists
+            if os.path.exists(file_path):
+                return send_file(file_path, as_attachment=True)
+            else:
+                return jsonify({"error": "File not found"}), 404
+        if  server_file_path_from_client and not filename:
+            if server_file_path_from_client == original_server_file_path_for_file_to_send_to_client:
+                if os.path.exists(server_file_path_from_client):
+                    print("fileeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+                    return send_file(server_file_path_from_client, as_attachment=True)
+                else:
+                    return jsonify({"success": False, "message": "File path does not exist."}), 400
+            else:
+                return jsonify({"error": "File path is not from client is not matched as per command"}), 400
 
-        # Construct the full filename
-        full_filename = f"{client_id}-{filename}"
-        print(full_filename)
-        file_path = os.path.join(BASE_DIR,"uploads/FILES_TO_SEND_TO_CLIENT", full_filename)
-        print(file_path)
-        # Check if file exists
-        if os.path.exists(file_path):
-            print("fileeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-            return send_file(file_path, as_attachment=True)
-        else:
-            return jsonify({"error": "File not found"}), 404
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500

