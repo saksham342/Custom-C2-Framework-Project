@@ -29,7 +29,7 @@ active_clients = {}
 original_server_file_path_for_file_to_send_to_client=""
 app = Flask(__name__)
 
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", ssl_context=('certs/cert.pem', 'certs/key.pem'))
 
 
 # Configure the instance folder
@@ -532,9 +532,7 @@ def receive_result():
         data = request.get_json()
         if "result" not in data or "client_id" not in data or "command" not in data:
             return jsonify({"error": "Missing required fields"}), 400
-            
         add_command_log(data["client_id"], command_initiator, data["command"], data["result"])
-        
         # Emit WebSocket message instead of storing in global var
         socketio.emit('command_result', {
             "client_id": data["client_id"],
@@ -789,5 +787,9 @@ def login_verify():
 
     return jsonify({"error": "Bad request"}), 400
 
-if __name__ == "__main__":
-    app.run(debug=True)
+if __name__ == '__main__':
+    # Generate certificates using OpenSSL for local testing
+    # openssl req -x509 -nodes -days 365 -newkey rsa:4096 -keyout key.pem -out cert.pem -config localhost.cnf
+
+    socketio.run(app, host='0.0.0.0', port=5000, ssl_context=('certs/cert.pem', 'certs/key.pem'))
+

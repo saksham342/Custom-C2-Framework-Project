@@ -1,2 +1,7 @@
 .env
 ./instance/admin.db
+/certs/
+*.cnf
+uploads/
+__pycache__/
+*.pyc

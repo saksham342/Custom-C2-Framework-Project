@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -127,6 +128,7 @@
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <div class="tabs-container" id="tabs-container"></div>
@@ -141,12 +143,15 @@
     <div class="notification-bar" id="notification-bar"></div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script>
-        const socket = io();
+        const socket2 = io('https://localhost:5000', {
+            transports: ['websocket'], // Force WebSocket transport (optional)
+            secure: true // Ensure secure connection
+        });
         let activeClientId = null;
         const allClients = new Map();
 
         // WebSocket event handlers
-        socket.on('live_client_list', (data) => {
+        socket2.on('live_client_list', (data) => {
             if (data.type === 'full_update') {
                 updateClientList(data.clients);
             }
@@ -164,7 +169,7 @@
                 if (!allClients.has(client.client_id)) addClient(client);
             });
 
-            document.querySelector('.no-clients').style.display = 
+            document.querySelector('.no-clients').style.display =
                 allClients.size > 0 ? 'none' : 'flex';
         }
 
@@ -232,9 +237,9 @@
         }
 
         function switchTab(clientId) {
-            document.querySelectorAll('.tab').forEach(tab => 
+            document.querySelectorAll('.tab').forEach(tab =>
                 tab.classList.toggle('active', tab.dataset.clientId === clientId));
-            document.querySelectorAll('.client-section').forEach(section => 
+            document.querySelectorAll('.client-section').forEach(section =>
                 section.classList.toggle('active', section.id === `client-${clientId}`));
             activeClientId = clientId;
         }
@@ -269,7 +274,7 @@
             }, 3000);
         }
 
-        socket.on('command_result', (data) => {
+        socket2.on('command_result', (data) => {
             const terminal = document.querySelector(`.terminal[data-client-id="${data.client_id}"]`);
             if (terminal) {
                 terminal.textContent += `\n${data.result}\n`;
@@ -279,4 +284,5 @@
 
     </script>
 </body>
+
 </html>

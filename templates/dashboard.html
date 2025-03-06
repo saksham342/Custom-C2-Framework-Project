@@ -760,18 +760,24 @@
             </div>
         </div>
     </div>
-
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script>
         let currentClientId = null;
         let clientsData = [];
 
         // WebSocket event handler for full client list update
-        // const socket = io();
+        const socket = io('https://localhost:5000', {
+            transports: ['websocket'], // Force WebSocket transport (optional)
+            secure: true // Ensure secure connection
+        });
+
         // Uncomment the above line and set up your WebSocket connection if not already done
 
         socket.on('all_client_list', (data) => {
+            console.log('Received all_client_list:', data); // Add this
             if (data.type === 'full_update') {
                 clientsData = data.clients;
+                console.log("aaaaaaaaaaa", clientsData)
                 updateClientTable(data.clients);
                 populateClientIdDropdown(data.clients);
             }

