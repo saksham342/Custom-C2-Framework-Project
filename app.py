@@ -15,7 +15,8 @@ from flask_socketio import SocketIO, emit
 from threading import Lock
 import time
 from Crypto.PublicKey import RSA  # Import PyCryptodome's RSA module for key generation
-
+from Crypto.Cipher import PKCS1_OAEP, AES
+from Crypto.Random import get_random_bytes
 
 # Load environment variables
 load_dotenv()
@@ -80,6 +81,17 @@ class CommandsLog(db.Model):
     def __repr__(self):
         return f"<CommandsLog {self.log_id} for {self.client_id}>"
 
+# Cryptography Data Table (for AES 256-bit keys)
+class CryptographyData(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.String(64), db.ForeignKey('client_data.client_id'), nullable=False)
+    aes_key = db.Column(db.LargeBinary, nullable=False)  # Store AES 256-bit key as binary
+
+    client = db.relationship('ClientData', backref=db.backref('cryptography_data', lazy=True))
+
+    def __repr__(self):
+        return f"<CryptographyData {self.client_id}>"
+    
 command_to_execute = {}
 execution_result = {}
 
@@ -275,6 +287,75 @@ def client_registration():
         db.session.rollback()  # Rollback the session in case of error
         print(f"Error saving client data: {e}")
         return jsonify({"error": "An error occurred while registering the client."}), 500
+
+@app.route('/api/aes-share', methods=['POST'])
+def aes_share():
+    print("Entering /api/aes-share endpoint")
+    data = request.get_json()
+    print(f"Received data: {data}")
+
+    encrypted_payload_hex = data.get('encrypted_payload')
+    if not encrypted_payload_hex:
+        print("Error: Missing encrypted_payload in request")
+        return jsonify({"error": "Missing encrypted_payload"}), 400
+
+    try:
+        print("Converting encrypted payload from hex to bytes")
+        encrypted_payload = bytes.fromhex(encrypted_payload_hex)
+
+        print("Loading RSA private key from environment")
+        private_key_pem = os.getenv('PRIVATE_KEY_FOR_AES_KEY_EXCHANGE')
+        if not private_key_pem:
+            print("Error: RSA private key not found in .env")
+            return jsonify({"error": "Server configuration error: Private key missing"}), 500
+
+        print("Importing RSA private key")
+        private_key = RSA.import_key(private_key_pem)
+
+        print("Decrypting payload with RSA private key")
+        cipher_rsa = PKCS1_OAEP.new(private_key)
+        decrypted_payload_bytes = cipher_rsa.decrypt(encrypted_payload)
+        decrypted_payload_json = decrypted_payload_bytes.decode('utf-8')
+        print(f"Decrypted payload (JSON): {decrypted_payload_json}")
+
+        payload = json.loads(decrypted_payload_json)
+        client_id = payload.get('client_id')
+        aes_key_hex = payload.get('aes_key')
+        if not client_id or not aes_key_hex:
+            print("Error: Missing client_id or aes_key in decrypted payload")
+            return jsonify({"error": "Invalid payload format"}), 400
+
+        print("Converting AES key from hex to bytes")
+        aes_key = bytes.fromhex(aes_key_hex)
+        print(f"Decrypted AES key (first 10 bytes): {aes_key[:10].hex()}...")
+
+        # Check if the AES key for the client_id already exists in the database
+        crypto_entry = CryptographyData.query.filter_by(client_id=client_id).first()
+
+        if crypto_entry:
+            # If the AES key exists for the client, update it
+            print(f"Found existing AES key for client_id: {client_id}. Updating the AES key.")
+            crypto_entry.aes_key = aes_key
+        else:
+            # If no entry is found, create a new one
+            print(f"No AES key found for client_id: {client_id}. Adding a new entry.")
+            crypto_entry = CryptographyData(client_id=client_id, aes_key=aes_key)
+            db.session.add(crypto_entry)
+
+        print("Committing database session")
+        db.session.commit()
+        print(f"AES key successfully updated/added for client_id: {client_id}")
+
+        return jsonify({"status": "Encrypted payload received and AES key stored"}), 200
+
+    except ValueError as e:
+        print(f"Error: Invalid encrypted payload format - {e}")
+        return jsonify({"error": "Invalid encrypted payload format"}), 400
+    except Exception as e:
+        print(f"Error in aes_share: {e}")
+        db.session.rollback()
+        return jsonify({"error": "Failed to process encrypted payload"}), 500
+
 
 command_initiator = ""
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
