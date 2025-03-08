@@ -17,6 +17,8 @@ import time
 from Crypto.PublicKey import RSA  # Import PyCryptodome's RSA module for key generation
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
+import base64
+import ast
 
 # Load environment variables
 load_dotenv(override=True)
@@ -370,30 +372,40 @@ def encrypt_data(aes_key, data):
         dict: Dictionary with nonce, ciphertext, and tag (all hex-encoded), or None if failed.
     """
     try:
+        print("[INFO] Starting encryption process...")
+
         # Convert input to bytes
         if isinstance(data, str):
+            print("[INFO] Data is a string. Encoding to bytes.")
             data_bytes = data.encode('utf-8')
         elif isinstance(data, bytes):
+            print("[INFO] Data is already in bytes.")
             data_bytes = data
         else:
             raise ValueError("Data must be string or bytes")
 
         # Generate a 12-byte nonce for AES-GCM
         nonce = get_random_bytes(12)
+        print(f"[INFO] Generated nonce: {nonce.hex()}")
 
         # Create AES-GCM cipher and encrypt
         cipher = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
         ciphertext, tag = cipher.encrypt_and_digest(data_bytes)
 
+        print("[INFO] Data encryption successful.")
+        
         # Return hex-encoded values for JSON compatibility
-        return {
+        encrypted_command_data = {
             "nonce": nonce.hex(),
             "ciphertext": ciphertext.hex(),
             "tag": tag.hex()
         }
+        return base64.b64encode(json.dumps(encrypted_command_data).encode('utf-8')).decode('utf-8')
+
     except Exception as e:
-        print(f"Error in encrypt_data: {e}")
+        print(f"[ERROR] Error in encrypt_data: {e}")
         return None
+
 
 
 def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
@@ -423,7 +435,12 @@ def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     except Exception as e:
         print(f"Error in decrypt_data: {e}")
         return None
-
+    
+def get_aes_key_by_client_id(client_id):
+    crypto_data = CryptographyData.query.filter_by(client_id=client_id).first()
+    if crypto_data:
+        return bytes(crypto_data.aes_key)  # Ensure it's in bytes
+    return None
 
 command_initiator = ""
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
@@ -468,7 +485,8 @@ def receive_command():
     if client_id in command_to_execute:
         command = command_to_execute[client_id]
         del command_to_execute[client_id]
-        return jsonify({"command": command})
+        command_to_encrypt = {"command": command}
+        return encrypt_data(get_aes_key_by_client_id(client_id),f"{command_to_encrypt}")
     return jsonify({"command": None})
 
 
@@ -712,15 +730,27 @@ def add_command_log(client_id, command_initiator, command, result):
 def receive_result():
     global command_initiator
     try:
-        data = request.get_json()
-        if "result" not in data or "client_id" not in data or "command" not in data:
+        client_id = request.args.get('clientID')
+        encrypted_and_base64_encoded_result_data = request.data
+        aes_key = get_aes_key_by_client_id(client_id)
+        encrypted_result_data_string = base64.b64decode(encrypted_and_base64_encoded_result_data).decode()
+        encrypted_result_data_json = json.loads(encrypted_result_data_string)
+        nonce_hex = encrypted_result_data_json.get("nonce")
+        ciphertext_hex = encrypted_result_data_json.get("ciphertext")
+        tag_hex = encrypted_result_data_json.get("tag")
+        decrypted_result = (decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex)).decode()
+        print(decrypted_result)
+        decrypted_result_json = ast.literal_eval(decrypted_result)
+
+
+        if "result" not in decrypted_result_json or "client_id" not in decrypted_result_json or "command" not in decrypted_result_json:
             return jsonify({"error": "Missing required fields"}), 400
-        add_command_log(data["client_id"], command_initiator, data["command"], data["result"])
+        add_command_log(decrypted_result_json["client_id"], command_initiator, decrypted_result_json["command"], decrypted_result_json["result"])
         # Emit WebSocket message instead of storing in global var
         socketio.emit('command_result', {
-            "client_id": data["client_id"],
-            "result": data["result"],
-            "command": data["command"]
+            "client_id": decrypted_result_json["client_id"],
+            "result": decrypted_result_json["result"],
+            "command": decrypted_result_json["command"]
         })
         
         return jsonify({"status": "Result received"}), 200

