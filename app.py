@@ -19,7 +19,7 @@ from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
 
 # Load environment variables
-load_dotenv()
+load_dotenv(override=True)
 SECRET_KEY = os.getenv('JWT_SECRET_KEY')
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -244,12 +244,13 @@ def client_registration():
         # Add the new client to the session and commit it to the database
         db.session.add(new_client)
         db.session.commit()
-        print(f"New client registered: {client_id}, User: {user}, IP: {ip}, OS: {os}, Registered at: {reg_date}")
-
+        print(f"New client registered: {client_id}, User: {user}, IP: {ip}, OS: {os_name}, Registered at: {reg_date}")
+        load_dotenv(override=True)
         # Check environment variables for public and private keys
         public_key = os.getenv('PUBLIC_KEY_FOR_AES_KEY_EXCHANGE')
         private_key = os.getenv('PRIVATE_KEY_FOR_AES_KEY_EXCHANGE')
-
+        print("Public key: ",public_key)
+        print("Private key: ", private_key)
         if public_key and private_key:
             # Both keys exist in .env, use the public key directly
             print("Using existing RSA keys from .env")
@@ -269,8 +270,9 @@ def client_registration():
                 print("New RSA keys appended to .env file.")
                 
                 # Reload environment variables to reflect the new keys
-                load_dotenv()  # Reload .env to update os.getenv() values
+                load_dotenv(override=True)  # Reload .env to update os.getenv() values
                 public_key = os.getenv('PUBLIC_KEY_FOR_AES_KEY_EXCHANGE')
+                print("Created new public key: ", public_key)
                 private_key = os.getenv('PRIVATE_KEY_FOR_AES_KEY_EXCHANGE')
             except Exception as e:
                 print(f"Error writing to .env file: {e}")
@@ -355,6 +357,72 @@ def aes_share():
         print(f"Error in aes_share: {e}")
         db.session.rollback()
         return jsonify({"error": "Failed to process encrypted payload"}), 500
+
+def encrypt_data(aes_key, data):
+    """
+    Encrypt data (text or file) using AES-GCM with the provided AES key.
+    
+    Args:
+        aes_key (bytes): The 256-bit AES key.
+        data (str or bytes): The data to encrypt (string for text, bytes for files).
+    
+    Returns:
+        dict: Dictionary with nonce, ciphertext, and tag (all hex-encoded), or None if failed.
+    """
+    try:
+        # Convert input to bytes
+        if isinstance(data, str):
+            data_bytes = data.encode('utf-8')
+        elif isinstance(data, bytes):
+            data_bytes = data
+        else:
+            raise ValueError("Data must be string or bytes")
+
+        # Generate a 12-byte nonce for AES-GCM
+        nonce = get_random_bytes(12)
+
+        # Create AES-GCM cipher and encrypt
+        cipher = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(data_bytes)
+
+        # Return hex-encoded values for JSON compatibility
+        return {
+            "nonce": nonce.hex(),
+            "ciphertext": ciphertext.hex(),
+            "tag": tag.hex()
+        }
+    except Exception as e:
+        print(f"Error in encrypt_data: {e}")
+        return None
+
+
+def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
+    """
+    Decrypt data (text or file) encrypted with AES-GCM using the provided AES key.
+    
+    Args:
+        aes_key (bytes): The 256-bit AES key.
+        nonce_hex (str): The hex-encoded nonce from encryption.
+        ciphertext_hex (str): The hex-encoded ciphertext from encryption.
+        tag_hex (str): The hex-encoded authentication tag from encryption.
+    
+    Returns:
+        bytes: Decrypted data (bytes, caller can decode to string for text), or None if failed.
+    """
+    try:
+        # Convert hex strings to bytes
+        nonce = bytes.fromhex(nonce_hex)
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        tag = bytes.fromhex(tag_hex)
+
+        # Create AES-GCM cipher and decrypt
+        cipher = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
+        plaintext_bytes = cipher.decrypt_and_verify(ciphertext, tag)
+
+        return plaintext_bytes
+    except Exception as e:
+        print(f"Error in decrypt_data: {e}")
+        return None
 
 
 command_initiator = ""

