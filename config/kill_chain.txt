@@ -1,0 +1,27 @@
+Reconnaissance:
+I gather intel on the target system or network (e.g., identifying IPs, domains, or exposed services).
+In my project: I can simulate this by scanning the system actively or doing passive recon to identify the assets, system details and configurations.
+
+Weaponization:
+I create a malicious payload or weapon (like a trojan, RAT, or keylogger).
+In my project: The agent itself is the payload. I can add features like command execution, file exfiltration, or persistence to make it versatile.
+
+Delivery:
+I deliver the payload to the target (via phishing, exploiting vulnerabilities, or USB drops).
+In my project: I might simulate this by crafting a dropper that downloads the agent from a C2 server or disguising the malware as a legitimate app.
+
+Exploitation:
+I exploit a vulnerability to execute the payload or escalate privileges.
+In my project: While I might not exploit an actual vulnerability, I can simulate exploitation through privilege escalation checks or sandbox evasion techniques.
+
+Installation:
+I install a backdoor or persistence mechanism to maintain access.
+In my project: I can implement persistence techniques (e.g., registry manipulation on Windows or cron jobs on Linux) so the agent survives reboots.
+
+Command and Control (C2):
+The compromised system connects to my C2 server to receive commands or exfiltrate data.
+In my project: This perfectly aligns with my command-send functionality! My malware agent polling the server for commands is a direct C2 simulation.
+
+Actions on Objectives:
+I achieve my goal, like stealing data, disrupting systems, or moving laterally.
+In my project: Based on the commands I send, the agent can carry out actions like file theft, credential dumping, or lateral movement to simulate this phase.

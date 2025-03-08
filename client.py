@@ -24,7 +24,7 @@ def get_username():
 def get_public_ip():
     try:
         # Use an external API to get the public IP address
-        response = requests.get("https://api.ipify.org?format=json", verify='cert.pem')
+        response = requests.get("https://api.ipify.org?format=json")
         if response.status_code == 200:
             public_ip = response.json().get("ip")
             return public_ip
