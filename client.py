@@ -100,16 +100,22 @@ def register_client():
         response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data, verify='cert.pem')
 
         if response.status_code == 201:
-            # Server response contains the client_id
+            # Server response contains the client_id and public_key
             client_data = response.json()
             client_id = client_data.get("client_id")
+            public_key = client_data.get("public_key")  # Extract the RSA public key
 
-            # Save client_id to the config file based on OS
+            if not client_id or not public_key:
+                print("Error: Server response missing client_id or public_key.")
+                return None
+
+            # Save both client_id and public_key to the config file based on OS
             config_file = CONFIG_FILE_LINUX if platform.system() == "Linux" else CONFIG_FILE_WINDOWS
             with open(config_file, 'w') as file:
-                json.dump({"client_id": client_id}, file)
+                json.dump({"client_id": client_id, "public_key": public_key}, file)
 
-            return client_id
+            print(f"Registered with client_id: {client_id} and saved server's public key.")
+            return client_id  # Return client_id for immediate use
         else:
             print(f"Registration failed. Status Code: {response.status_code}")
             return None

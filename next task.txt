@@ -1,3 +1,0 @@
-1. https connection
-2. initial key exchange functionality (idea only), and if i can, code and implement some part
-client id change(delet), more next task, modular approach

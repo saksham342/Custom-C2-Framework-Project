@@ -14,6 +14,7 @@ import json
 from flask_socketio import SocketIO, emit
 from threading import Lock
 import time
+from Crypto.PublicKey import RSA  # Import PyCryptodome's RSA module for key generation
 
 
 # Load environment variables
@@ -207,7 +208,7 @@ def client_registration():
     # Extract client details from request
     user = data.get('user')
     ip = data.get('public_ip')
-    os = data.get('os')
+    os_name = data.get('os')
 
     # Generate a unique client_id (random 6 characters + timestamp)
     client_id = generate_client_id()
@@ -221,10 +222,10 @@ def client_registration():
         user=user,
         nickname="nickname",
         ip=ip,
-        os=os,
+        os=os_name,
         registered_at=reg_date,
         last_active=reg_date,
-        address = get_address(ip)
+        address=get_address(ip)
     )
 
     try:
@@ -233,14 +234,47 @@ def client_registration():
         db.session.commit()
         print(f"New client registered: {client_id}, User: {user}, IP: {ip}, OS: {os}, Registered at: {reg_date}")
 
-        # Return the client_id and registration date as a response
-        return jsonify({"client_id": client_id, "reg_date": reg_date.strftime('%Y-%m-%d %H:%M:%S')}), 201
+        # Check environment variables for public and private keys
+        public_key = os.getenv('PUBLIC_KEY_FOR_AES_KEY_EXCHANGE')
+        private_key = os.getenv('PRIVATE_KEY_FOR_AES_KEY_EXCHANGE')
+
+        if public_key and private_key:
+            # Both keys exist in .env, use the public key directly
+            print("Using existing RSA keys from .env")
+        else:
+            # One or both keys are missing, generate a new RSA key pair
+            print("Generating new RSA key pair...")
+            rsa_key = RSA.generate(2048)  # Generate 2048-bit RSA key pair
+            public_key = rsa_key.publickey().exportKey('PEM').decode('utf-8')  # Export public key as PEM string
+            private_key = rsa_key.exportKey('PEM').decode('utf-8')  # Export private key as PEM string
+
+            # Append the new keys to the .env file
+            env_file_path = os.path.join(BASE_DIR, '.env')
+            try:
+                with open(env_file_path, 'a') as env_file:
+                    env_file.write(f'\nPUBLIC_KEY_FOR_AES_KEY_EXCHANGE="{public_key}"\n')
+                    env_file.write(f'PRIVATE_KEY_FOR_AES_KEY_EXCHANGE="{private_key}"\n')
+                print("New RSA keys appended to .env file.")
+                
+                # Reload environment variables to reflect the new keys
+                load_dotenv()  # Reload .env to update os.getenv() values
+                public_key = os.getenv('PUBLIC_KEY_FOR_AES_KEY_EXCHANGE')
+                private_key = os.getenv('PRIVATE_KEY_FOR_AES_KEY_EXCHANGE')
+            except Exception as e:
+                print(f"Error writing to .env file: {e}")
+                return jsonify({"error": "Server configuration error: Unable to save RSA keys."}), 500
+
+        # Return the client_id, registration date, and public key as a response
+        return jsonify({
+            "client_id": client_id,
+            "reg_date": reg_date.strftime('%Y-%m-%d %H:%M:%S'),
+            "public_key": public_key
+        }), 201
 
     except Exception as e:
         db.session.rollback()  # Rollback the session in case of error
         print(f"Error saving client data: {e}")
         return jsonify({"error": "An error occurred while registering the client."}), 500
-
 
 command_initiator = ""
 @app.route('/input-command-to-execute-from-web', methods=['POST'])
