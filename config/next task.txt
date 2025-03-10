@@ -1,26 +1,5 @@
-1. https connection and web socket secure connection - completed
-2. initial key exchange functionality using https post request
-
-
-One database containing session keys with client : 
-client_id |  session key
-
-when client first connects (very first):
-key exchange occours using RSA. 
-
-
-AES encryption using shared session key
-
-
-client make one and server 
-
-
-There are two files one encrypt.py and one decrypt.py. 
-
-
-(idea only), and if i can, code and implement some part
-client id change(delet), more next task, modular approach
-
 sandbox evasion techniques
+
+implement encryption and decryption in file upload and download functionality
 
 

