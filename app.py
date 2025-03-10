@@ -614,6 +614,15 @@ def upload_from_server():
 @app.route("/api/upload-file-to-client", methods=["GET"])
 def upload_file_to_client():
     global original_server_file_path_for_file_to_send_to_client
+
+    def encrypt_and_return_file(client_id,final_file_path_to_send):
+        with open(final_file_path_to_send, 'rb') as file:
+            file_data = file.read()
+            encrypted_data = encrypt_data(get_aes_key_by_client_id(client_id), file_data)
+            if encrypted_data:
+                print("[INFOxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx] File encryption successful.")
+                return encrypted_data
+
     try:
         # Extract client_id and filename from request parameters
         client_id = request.args.get("clientID")
@@ -631,13 +640,14 @@ def upload_file_to_client():
             print(file_path)
             # Check if file exists
             if os.path.exists(file_path):
-                return send_file(file_path, as_attachment=True)
+                return encrypt_and_return_file(client_id,file_path)
             else:
                 return jsonify({"error": "File not found"}), 404
-        if  server_file_path_from_client and not filename:
+            
+        elif  server_file_path_from_client and not filename:
             if server_file_path_from_client == original_server_file_path_for_file_to_send_to_client:
                 if os.path.exists(server_file_path_from_client):
-                    return send_file(server_file_path_from_client, as_attachment=True)
+                    return encrypt_and_return_file(client_id,server_file_path_from_client)
                 else:
                     return jsonify({"success": False, "message": "File path does not exist."}), 400
             else:
