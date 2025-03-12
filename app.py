@@ -457,7 +457,7 @@ def execute_command(decoded_token):
         command_to_execute[command_json["clientid"]] = command_json["command"]
         print(command_to_execute)
         print(f"Received command: {command_json["command"]}")  # Log the received command in the terminal
-        return jsonify({"status": "Command received"})
+        return jsonify({"status": "Command sent to the server and queued for client transmission successfully."})
     return jsonify({"status": "No command received"})
 
 

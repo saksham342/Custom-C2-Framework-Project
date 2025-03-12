@@ -256,10 +256,21 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ clientid: clientId, command })
-            });
+            })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status) {
+            alert(data.status);
+        }
+    })
+    .catch(error => {
+        alert("Failed to send the command. Please try again.");
+        console.error('Error:', error);
+    });
+}
 
             inputElement.value = '';
-        }
+        
 
         function showNotification(message, isConnected) {
             const notificationBar = document.getElementById('notification-bar');
