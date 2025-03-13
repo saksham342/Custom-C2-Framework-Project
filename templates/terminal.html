@@ -267,9 +267,10 @@
         alert("Failed to send the command. Please try again.");
         console.error('Error:', error);
     });
+    inputElement.value = '';
 }
 
-            inputElement.value = '';
+           
         
 
         function showNotification(message, isConnected) {

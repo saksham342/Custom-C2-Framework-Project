@@ -453,7 +453,11 @@ def execute_command(decoded_token):
         client_in_database = ClientData.query.filter_by(client_id=command_json["clientid"]).first()
         if not client_in_database:
             return jsonify({"error": "Client is not found in database"})
-        
+        try:
+            if datetime.datetime.utcnow() - client_in_database.last_active > timedelta(seconds=8):
+                return jsonify({"status": "Failed! Client inactive. Command queued for execution on reactivation."})
+        except Exception as e:
+            print(e)
         command_to_execute[command_json["clientid"]] = command_json["command"]
         print(command_to_execute)
         print(f"Received command: {command_json["command"]}")  # Log the received command in the terminal
