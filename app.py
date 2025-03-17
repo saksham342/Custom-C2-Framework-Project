@@ -180,6 +180,10 @@ def home():
 
 
 
+@app.route("/dashboard/")
+def to_dashbaord():
+    return redirect(url_for('dashboard'))
+
 @app.route("/login")
 def login():
     return render_template("login.html")
@@ -892,7 +896,8 @@ def get_all_admins(decoded_token):
 
 
 @app.route('/api/clients', methods=['GET'])
-def get_clients():
+@token_required
+def get_clients(decoded_token):
     try:
         clients = ClientData.query.with_entities(ClientData.client_id).all()
         client_list = [client.client_id for client in clients]
@@ -902,7 +907,8 @@ def get_clients():
 
 # Initiator endpoint - returns all admin codenames from Admin table
 @app.route('/api/initiators', methods=['GET'])
-def get_initiators():
+@token_required
+def get_initiators(decoded_token):
     try:
         admins = Admin.query.with_entities(Admin.codename).all()
         initiator_list = [admin.codename for admin in admins]
@@ -913,12 +919,14 @@ def get_initiators():
 
 
 @app.route('/logs/')
-def logs_page():
+@token_required
+def logs_page(decoded_token):
     """Serve the logs dashboard page."""
-    return render_template('logs1.html')
+    return render_template('logs.html')
 
 @app.route('/api/logs', methods=['GET'])
-def get_logs():
+@token_required
+def get_logs(decoded_token):
     """Retrieve and filter logs from the database."""
     # Get query parameters
     client_id = request.args.get('client_id')

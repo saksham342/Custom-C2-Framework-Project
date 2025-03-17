@@ -77,6 +77,10 @@
             color: var(--text-primary);
         }
 
+        .text-muted {
+            color: rgb(83, 255, 118) !important
+        }
+
         .table thead th {
             background: var(--bg-dark);
             border-bottom: 2px solid var(--accent-primary);
@@ -94,7 +98,12 @@
         }
 
         .table tbody tr:hover {
-            background: rgba(35, 134, 54, 0.05);
+            background: rgb(170, 251, 186);
+            cursor: pointer;
+
+            .text-muted {
+                color: rgb(0, 0, 0) !important
+            }
         }
 
         .result-cell {
@@ -241,7 +250,7 @@
             const overlay = document.getElementById('loadingOverlay');
             try {
                 overlay.style.display = 'flex';
-                
+
                 // Get current filter values
                 const filters = {
                     clientId: document.getElementById('clientIdFilter').value || 'All Clients',
@@ -265,12 +274,12 @@
                 // PDF Configuration
                 const doc = new jsPDF('landscape');
                 const date = new Date().toLocaleString();
-                
+
                 // Header text
                 doc.setFontSize(16);
                 doc.setTextColor(35, 134, 54);
                 doc.text('Command & Control Logs Report', 14, 20);
-                
+
                 doc.setFontSize(10);
                 doc.setTextColor(40, 40, 40);
                 doc.text(`Generated: ${date}`, 14, 28);
@@ -325,7 +334,7 @@
                         command: { cellWidth: 40 },
                         result: { cellWidth: 100 }
                     },
-                    didDrawPage: function(data) {
+                    didDrawPage: function (data) {
                         // Footer
                         const pageCount = doc.internal.getNumberOfPages();
                         doc.setFontSize(10);
@@ -413,7 +422,7 @@
             const tbody = document.querySelector('#logsTable tbody');
             tbody.innerHTML = data.length ? data.map(log => `
                 <tr>
-                    <td class="text-muted">#${log.log_id}</td>
+                    <td class="text-muted" >- ${log.log_id}</td>
                     <td><span class="badge bg-dark">${log.client_id}</span></td>
                     <td>${log.command_initiator}</td>
                     <td>${new Date(log.timestamp).toLocaleString()}</td>
