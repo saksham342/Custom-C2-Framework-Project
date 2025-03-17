@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Logs - C2 Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #0D1117;
+            --bg-secondary: #161B22;
+            --accent-primary: #238636;
+            --accent-hover: #2EA043;
+            --text-primary: #E6EDF3;
+            --text-secondary: #848D97;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--bg-secondary) 0%, var(--bg-dark) 100%);
+            padding: 1.5rem;
+            border-bottom: 1px solid #30363D;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+        }
+
+        .filter-card {
+            background: var(--bg-secondary);
+            border: 1px solid #30363D;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            margin-bottom: 1.5rem;
+        }
+
+        .form-control {
+            background: var(--bg-dark);
+            border: 1px solid #30363D;
+            color: var(--text-primary);
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            background: var(--bg-dark);
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(35, 134, 54, 0.15);
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            border: none;
+            padding: 0.5rem 1.25rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .table-container {
+            background: var(--bg-secondary);
+            border: 1px solid #30363D;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .table {
+            margin-bottom: 0;
+            color: var(--text-primary);
+        }
+
+        .table thead th {
+            background: var(--bg-dark);
+            border-bottom: 2px solid var(--accent-primary);
+            font-weight: 600;
+            padding: 1rem;
+        }
+
+        .table tbody tr {
+            border-bottom: 1px solid #30363D;
+            transition: background 0.2s ease;
+        }
+
+        .table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(35, 134, 54, 0.05);
+        }
+
+        .result-cell {
+            max-width: 400px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9em;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(13, 17, 23, 0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .spinner {
+            width: 2.5rem;
+            height: 2.5rem;
+            border: 3px solid rgba(35, 134, 54, 0.3);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .form-select {
+            background-color: var(--bg-dark);
+            border: 1px solid #30363D;
+            color: var(--text-primary);
+            cursor: pointer;
+        }
+
+        .form-select:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(35, 134, 54, 0.15);
+        }
+
+        .input-group-text {
+            background-color: var(--bg-dark);
+            border: 1px solid #30363D;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="container">
+            <div class="d-flex align-items-center justify-content-between">
+                <h2 class="mb-0"><i class="fas fa-terminal me-2"></i>Command & Control Logs</h2>
+                <div class="d-flex align-items-center">
+                    <span class="status-indicator bg-success"></span>
+                    <small class="text-muted">Connected</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container my-4">
+        <div class="filter-card p-3">
+            <form id="filterForm">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <select class="form-select" id="clientIdFilter">
+                            <option value="">All Clients</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <select class="form-select" id="initiatorFilter">
+                            <option value="">All Initiators</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <input type="datetime-local" class="form-control" id="startTimeFilter">
+                    </div>
+                    <div class="col-12 col-md-6 col-lg-3">
+                        <input type="datetime-local" class="form-control" id="endTimeFilter">
+                    </div>
+                </div>
+                <div class="d-flex justify-content-end mt-3 gap-2">
+                    <button type="button" class="btn btn-primary" onclick="applyFilters()">
+                        <i class="fas fa-filter me-2"></i>Apply Filters
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" onclick="resetFilters()">
+                        <i class="fas fa-undo me-2"></i>Reset
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" onclick="exportLogsPDF()">
+                        <i class="fas fa-file-pdf me-2"></i>Export Logs
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="table-container position-relative">
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="spinner"></div>
+            </div>
+            <table class="table table-hover" id="logsTable">
+                <thead>
+                    <tr>
+                        <th>Log ID</th>
+                        <th>Client</th>
+                        <th>Initiator</th>
+                        <th>Timestamp</th>
+                        <th>Command</th>
+                        <th>Output</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script>
+        window.jsPDF = window.jspdf.jsPDF;
+        let currentRequest = null;
+
+        async function exportLogsPDF() {
+            const overlay = document.getElementById('loadingOverlay');
+            try {
+                overlay.style.display = 'flex';
+                
+                // Get current filter values
+                const filters = {
+                    clientId: document.getElementById('clientIdFilter').value || 'All Clients',
+                    initiator: document.getElementById('initiatorFilter').value || 'All Initiators',
+                    startTime: document.getElementById('startTimeFilter').value || 'Any',
+                    endTime: document.getElementById('endTimeFilter').value || 'Any'
+                };
+
+                // Fetch data with current filters
+                const params = new URLSearchParams({
+                    client_id: document.getElementById('clientIdFilter').value,
+                    initiator: document.getElementById('initiatorFilter').value,
+                    start_time: document.getElementById('startTimeFilter').value,
+                    end_time: document.getElementById('endTimeFilter').value
+                });
+
+                const response = await fetch(`/api/logs?${params}`);
+                if (!response.ok) throw new Error('Failed to fetch logs');
+                const data = await response.json();
+
+                // PDF Configuration
+                const doc = new jsPDF('landscape');
+                const date = new Date().toLocaleString();
+                
+                // Header text
+                doc.setFontSize(16);
+                doc.setTextColor(35, 134, 54);
+                doc.text('Command & Control Logs Report', 14, 20);
+                
+                doc.setFontSize(10);
+                doc.setTextColor(40, 40, 40);
+                doc.text(`Generated: ${date}`, 14, 28);
+                doc.text(`Client: ${filters.clientId}`, 14, 33);
+                doc.text(`Initiator: ${filters.initiator}`, 14, 38);
+                doc.text(`Time Range: ${filters.startTime} to ${filters.endTime}`, 14, 43);
+
+                // Table columns
+                const columns = [
+                    { header: 'Log ID', dataKey: 'log_id' },
+                    { header: 'Client', dataKey: 'client_id' },
+                    { header: 'Initiator', dataKey: 'command_initiator' },
+                    { header: 'Timestamp', dataKey: 'timestamp' },
+                    { header: 'Command', dataKey: 'command' },
+                    { header: 'Output', dataKey: 'result' }
+                ];
+
+                // Process data for PDF
+                const tableData = data.map(log => ({
+                    ...log,
+                    timestamp: new Date(log.timestamp).toLocaleString(),
+                    result: log.result || 'No output'
+                }));
+
+                // Generate PDF table
+                doc.autoTable({
+                    columns: columns,
+                    body: tableData,
+                    startY: 48,
+                    theme: 'grid',
+                    styles: {
+                        font: 'helvetica',
+                        fontSize: 8,
+                        textColor: [13, 17, 23],
+                        lineColor: [48, 54, 61],
+                        lineWidth: 0.25
+                    },
+                    headStyles: {
+                        fillColor: [22, 27, 34],
+                        textColor: [230, 237, 243],
+                        fontSize: 9,
+                        fontStyle: 'bold'
+                    },
+                    alternateRowStyles: {
+                        fillColor: [246, 246, 246]
+                    },
+                    columnStyles: {
+                        log_id: { cellWidth: 20 },
+                        client_id: { cellWidth: 25 },
+                        command_initiator: { cellWidth: 30 },
+                        timestamp: { cellWidth: 35 },
+                        command: { cellWidth: 40 },
+                        result: { cellWidth: 100 }
+                    },
+                    didDrawPage: function(data) {
+                        // Footer
+                        const pageCount = doc.internal.getNumberOfPages();
+                        doc.setFontSize(10);
+                        doc.text(`Page ${data.pageNumber} of ${pageCount}`, data.settings.margin.left, doc.internal.pageSize.height - 10);
+                    }
+                });
+
+                // Save PDF
+                doc.save(`C2_Logs_${new Date().toISOString()}.pdf`);
+            } catch (error) {
+                console.error('PDF export failed:', error);
+                alert('Error generating PDF. Please try again.');
+            } finally {
+                overlay.style.display = 'none';
+            }
+        }
+
+        async function fetchClients() {
+            try {
+                const response = await fetch('/api/clients');
+                if (!response.ok) throw new Error('Failed to fetch clients');
+                const clients = await response.json();
+                populateDropdown('clientIdFilter', clients);
+            } catch (error) {
+                console.error('Error fetching clients:', error);
+            }
+        }
+
+        async function fetchInitiators() {
+            try {
+                const response = await fetch('/api/initiators');
+                if (!response.ok) throw new Error('Failed to fetch initiators');
+                const initiators = await response.json();
+                populateDropdown('initiatorFilter', initiators);
+            } catch (error) {
+                console.error('Error fetching initiators:', error);
+            }
+        }
+
+        function populateDropdown(selectId, options) {
+            const select = document.getElementById(selectId);
+            options.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option;
+                opt.textContent = option;
+                select.appendChild(opt);
+            });
+        }
+
+        async function fetchLogs() {
+            const overlay = document.getElementById('loadingOverlay');
+            try {
+                overlay.style.display = 'flex';
+                if (currentRequest) currentRequest.abort();
+
+                const controller = new AbortController();
+                currentRequest = controller;
+
+                const params = new URLSearchParams({
+                    client_id: document.getElementById('clientIdFilter').value,
+                    initiator: document.getElementById('initiatorFilter').value,
+                    start_time: document.getElementById('startTimeFilter').value,
+                    end_time: document.getElementById('endTimeFilter').value
+                });
+
+                const response = await fetch(`/api/logs?${params}`, {
+                    signal: controller.signal
+                });
+
+                if (!response.ok) throw new Error(response.statusText);
+
+                const data = await response.json();
+                renderTable(data);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    showError('Failed to fetch logs. Please try again.');
+                }
+            } finally {
+                overlay.style.display = 'none';
+                currentRequest = null;
+            }
+        }
+
+        function renderTable(data) {
+            const tbody = document.querySelector('#logsTable tbody');
+            tbody.innerHTML = data.length ? data.map(log => `
+                <tr>
+                    <td class="text-muted">#${log.log_id}</td>
+                    <td><span class="badge bg-dark">${log.client_id}</span></td>
+                    <td>${log.command_initiator}</td>
+                    <td>${new Date(log.timestamp).toLocaleString()}</td>
+                    <td><code>${log.command}</code></td>
+                    <td class="result-cell">${log.result || 'No output'}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="text-center py-4 text-muted">No matching logs found</td></tr>`;
+        }
+
+        function showError(message) {
+            const tbody = document.querySelector('#logsTable tbody');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-danger py-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>${message}
+                    </td>
+                </tr>
+            `;
+        }
+
+        function applyFilters() {
+            fetchLogs();
+        }
+
+        function resetFilters() {
+            document.getElementById('filterForm').reset();
+            fetchLogs();
+        }
+
+        window.onload = async () => {
+            await fetchClients();
+            await fetchInitiators();
+            fetchLogs();
+        };
+    </script>
+</body>
+
+</html>

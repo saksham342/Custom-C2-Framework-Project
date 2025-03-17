@@ -891,6 +891,83 @@ def get_all_admins(decoded_token):
             return jsonify({"error": "Access forbidden"}), 403  # Return an error if not a superadmin
 
 
+@app.route('/api/clients', methods=['GET'])
+def get_clients():
+    try:
+        clients = ClientData.query.with_entities(ClientData.client_id).all()
+        client_list = [client.client_id for client in clients]
+        return jsonify(client_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Initiator endpoint - returns all admin codenames from Admin table
+@app.route('/api/initiators', methods=['GET'])
+def get_initiators():
+    try:
+        admins = Admin.query.with_entities(Admin.codename).all()
+        initiator_list = [admin.codename for admin in admins]
+        return jsonify(initiator_list), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
+@app.route('/logs/')
+def logs_page():
+    """Serve the logs dashboard page."""
+    return render_template('logs1.html')
+
+@app.route('/api/logs', methods=['GET'])
+def get_logs():
+    """Retrieve and filter logs from the database."""
+    # Get query parameters
+    client_id = request.args.get('client_id')
+    initiator = request.args.get('initiator')
+    start_time = request.args.get('start_time')  # Expected in ISO format, e.g., "2025-03-09T00:00:00"
+    end_time = request.args.get('end_time')      # Expected in ISO format, e.g., "2025-03-09T23:59:59"
+
+    # Build the base query
+    query = CommandsLog.query
+
+    # Apply filters if provided
+    if client_id:
+        query = query.filter_by(client_id=client_id)
+    if initiator:
+        query = query.filter_by(command_initiator=initiator)
+
+    # Fetch all matching logs
+    logs = query.all()
+
+    # Filter logs by timestamp in the application layer
+    filtered_logs = []
+    for log in logs:
+        try:
+            # Parse the commands_history JSON
+            history = json.loads(log.commands_history)
+            timestamp_str = history.get('timestamp')
+            if not timestamp_str:
+                continue
+
+            # Convert timestamp string to datetime object
+            timestamp = datetime.datetime.fromisoformat(timestamp_str)
+
+            # Check if timestamp falls within the provided range
+            if (not start_time or timestamp >= datetime.datetime.fromisoformat(start_time)) and \
+               (not end_time or timestamp <= datetime.datetime.fromisoformat(end_time)):
+                filtered_logs.append({
+                    'log_id': log.log_id,
+                    'client_id': log.client_id,
+                    'command_initiator': log.command_initiator,
+                    'timestamp': timestamp_str,
+                    'command': history.get('command'),
+                    'result': history.get('result')
+                })
+        except (json.JSONDecodeError, ValueError):
+            # Skip entries with invalid JSON or timestamp formats
+            continue
+
+    # Return the filtered logs as JSON
+    return jsonify(filtered_logs)
 
 
 @app.route("/api/createAdmin", methods=["POST"])
