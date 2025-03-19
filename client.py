@@ -29,7 +29,7 @@ hook = None  # For Windows
 current_directory = os.path.expanduser("~")
 SERVER_URL = "https://127.0.0.1:5000"  # Change to your actual server URL later
 
-CONFIG_FILE_LINUX = "./.rootconfig.ini"  # Path in Linux root directory
+CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
 
 # Function to get the username using `whoami` (works on both Windows and Linux)

