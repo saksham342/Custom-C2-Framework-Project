@@ -1310,25 +1310,53 @@
                     console.error('Error:', error);
                 });
         }
-        
+
         function startScreenshare() {
+            const fps = document.getElementById('fpsInput').value;
+            if (fps < 1 || fps > 20) {
+                alert("Frame rate must be between 1 and 20 FPS");
+                return;
+            }
+            alert(`Alert: Screenshare streaming started at ${fps} FPS.`);
+
+            // Send start_screenshare command to the server
             fetch('/input-command-to-execute-from-web', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientid: currentClientId, command: "start_screenshare" })
+                body: JSON.stringify({
+                    clientid: currentClientId,
+                    command: `start_screenshare_${fps}`
+                })
+
             })
                 .then(response => response.json())
                 .then(data => {
-                    logAction(`Command send to share screen to "${currentClientId}".`);
-                    if (data.status) {
-
-                        alert(data.status);
+                    if (data.status && data.status.includes("queued for client transmission")) {
+                        // Open a new window with clientID as a query string
+                        const screenshareWindow = window.open(`/screenshare?clientID=${encodeURIComponent(currentClientId)}&fps=${fps}`, '_blank');
+                        if (screenshareWindow) {
+                            // Monitor if the window is closed
+                            const interval = setInterval(() => {
+                                if (screenshareWindow.closed) {
+                                    clearInterval(interval);
+                                    stopScreenshare();
+                                }
+                            }, 1000);
+                        } else {
+                            alert("Failed to open screenshare window. Please allow popups.");
+                        }
+                    } else {
+                        alert("Failed to start screenshare: " + (data.status || "Unknown error"));
+                        logAction(`Failed to start screenshare for ${currentClientId}: ${data.status}`);
                     }
                 })
                 .catch(error => {
-                    alert("Failed to send the command. Please try again.");
-                    console.error('Error:', error);
+                    console.error('Error starting screenshare:', error);
+                    alert("An error occurred while starting screenshare: " + error.message);
+                    logAction(`Error starting screenshare for ${currentClientId}: ${error.message}`);
                 });
+
+
         }
 
         function stopScreenshare() {
@@ -1339,15 +1367,18 @@
             })
                 .then(response => response.json())
                 .then(data => {
-                    logAction(`Command send to stop screen sharing to "${currentClientId}".`);
-                    if (data.status) {
-
-                        alert(data.status);
+                    if (data.status && data.status.includes("queued for client transmission")) {
+                        alert("Screenshare stopped successfully.");
+                        logAction(`Screenshare stopped for ${currentClientId}`);
+                    } else {
+                        alert("Failed to stop screenshare: " + (data.status || "Unknown error"));
+                        logAction(`Failed to stop screenshare for ${currentClientId}: ${data.message}`);
                     }
                 })
                 .catch(error => {
-                    alert("Failed to send the command. Please try again.");
-                    console.error('Error:', error);
+                    console.error('Error stopping screenshare:', error);
+                    alert("An error occurred while stopping screenshare.");
+                    logAction(`Error stopping screenshare for ${currentClientId}`);
                 });
         }
 

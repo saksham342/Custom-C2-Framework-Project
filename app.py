@@ -35,8 +35,8 @@ original_server_file_path_for_file_to_send_to_client=""
 app = Flask(__name__)
 
 # Global variables and constants for screen share
-SCREENSHARE_SCREENSHOT_PATH = "static/latest_screenshot.png"
-
+SCREENSHARE_SCREENSHOT_PATH = "static/"
+client_specific_screenshare_screnshot_path = ""
 
 socketio = SocketIO(app, cors_allowed_origins="*", ssl_context=('cert.pem', 'key.pem'))
 
@@ -991,14 +991,20 @@ def upload_screenshot():
         if 'screenshot' not in request.files:
             print("No screenshot uploaded")
             return Response("No screenshot uploaded", status=400)
-        
+        client_id = request.args.get('clientId')
+        if not client_id:
+            return jsonify({"error": "clientID is required"}), 400
+
+        client_in_database = ClientData.query.filter_by(client_id=client_id).first()
+        if not client_in_database:
+            return jsonify({"error": "Client is not found in database"})
         screenshot = request.files['screenshot']
         if screenshot.filename == '':
             print("Empty filename received")
             return Response("Empty filename", status=400)
-
-        screenshot.save(SCREENSHARE_SCREENSHOT_PATH)
-        print(f"Screenshot saved to {SCREENSHARE_SCREENSHOT_PATH} at {time.ctime()}")
+        client_specific_screenshare_screnshot_path = f"{SCREENSHARE_SCREENSHOT_PATH}{client_id}-latestscreenshot.png"
+        screenshot.save(client_specific_screenshare_screnshot_path)
+        print(f"Screenshot saved to {client_specific_screenshare_screnshot_path} at {time.ctime()}")
         return Response("Screenshot received", status=200)
     except Exception as e:
         print(f"Error saving screenshot: {e}")
@@ -1007,16 +1013,19 @@ def upload_screenshot():
 @app.route('/api/view-screenshare')
 def get_screenshot():
     try:
-        if os.path.exists(SCREENSHARE_SCREENSHOT_PATH):
-            print(f"Serving screenshot from {SCREENSHARE_SCREENSHOT_PATH}")
+        client_id = request.args.get("clientId")
+        screenshot_path_of_specific_client_to_send_in_web_dashboard = f"{SCREENSHARE_SCREENSHOT_PATH}{client_id}-latestscreenshot.png"
+        
+        if os.path.exists(screenshot_path_of_specific_client_to_send_in_web_dashboard):
+            print(f"Serving screenshot from {screenshot_path_of_specific_client_to_send_in_web_dashboard}")
             # Use make_response to add no-cache headers
-            response = make_response(send_file(SCREENSHARE_SCREENSHOT_PATH, mimetype='image/png'))
+            response = make_response(send_file(screenshot_path_of_specific_client_to_send_in_web_dashboard, mimetype='image/png'))
             response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
             response.headers['Pragma'] = 'no-cache'
             response.headers['Expires'] = '0'
             return response
         else:
-            print(f"Screenshot file not found at {SCREENSHARE_SCREENSHOT_PATH}")
+            print(f"Screenshot file not found at {screenshot_path_of_specific_client_to_send_in_web_dashboard}")
             return Response("No screenshot available", status=404)
     except Exception as e:
         print(f"Error serving screenshot: {e}")

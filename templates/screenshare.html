@@ -56,8 +56,8 @@
 
 <body>
     <h1>Live Screenshare Dashboard</h1>
-    <img id="screenshot" src="/api/view-screenshare" alt="Latest Screenshot" ,
-        onerror="this.src='data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='">
+    <img id="screenshot" alt="Latest Screenshot">
+
     <div class="controls">
         <button id="startBtn">Start Recording</button>
         <button id="stopBtn" disabled>Stop Recording</button>
@@ -71,13 +71,19 @@
         const toggleSizeBtn = document.getElementById("toggleSizeBtn");
         let isFullScreen = false;
 
+        // Create a hidden image element for preloading
+        const hiddenImg = document.createElement('img');
+        hiddenImg.style.display = 'none';
+        document.body.appendChild(hiddenImg);
+
+        // Toggle full-screen functionality
         toggleSizeBtn.addEventListener("click", () => {
             if (isFullScreen) {
-                screenshot.style.width = "70%";
-                screenshot.style.maxWidth = "800px";
+                img.style.width = "70%";
+                img.style.maxWidth = "800px";
             } else {
-                screenshot.style.width = "100%";
-                screenshot.style.maxWidth = "100vw";
+                img.style.width = "100%";
+                img.style.maxWidth = "100vw";
             }
             isFullScreen = !isFullScreen;
         });
@@ -88,11 +94,30 @@
         let canvas;
         let ctx;
 
-        // Refresh the image every 100ms (10 FPS default)
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientID = urlParams.get("clientID");
+        const fps = urlParams.get("fps");
+
+        // Function to refresh the image by preloading it first
         function refreshImage() {
-            img.src = '/api/view-screenshare?' + new Date().getTime();
+            const timestamp = new Date().getTime();
+            const url = `/api/view-screenshare?clientId=${encodeURIComponent(clientID)}&t=${timestamp}`;
+            hiddenImg.src = url; // Load the new image in the background
         }
-        setInterval(refreshImage, 100);
+
+        // When the hidden image loads, update the visible image
+        hiddenImg.addEventListener('load', () => {
+            img.src = hiddenImg.src; // Update visible image only when new image is ready
+        });
+        let refreshTime = 1000 / fps;
+        // Error handling for the hidden image
+        hiddenImg.addEventListener('error', () => {
+            console.error('Failed to load image from server');
+            // Retry after a 1-second delay
+        });
+
+        // Start refreshing the image every fps calcualted time
+        setInterval(refreshImage, refreshTime);
 
         // Initialize canvas for capturing frames
         function setupCanvas() {
@@ -101,10 +126,10 @@
             canvas.height = img.naturalHeight || 720; // Default height if not loaded yet
             ctx = canvas.getContext('2d');
             // Update canvas size when image loads
-            img.onload = () => {
+            img.addEventListener('load', () => {
                 canvas.width = img.naturalWidth;
                 canvas.height = img.naturalHeight;
-            };
+            });
         }
 
         // Start recording
@@ -134,7 +159,7 @@
                 recordedChunks = [];
             };
 
-            // Draw the image to the canvas at 10 FPS
+            // Draw the image to the canvas continuously while recording
             function drawFrame() {
                 if (mediaRecorder.state === 'recording') {
                     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
