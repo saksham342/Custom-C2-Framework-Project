@@ -1,5 +1,5 @@
 import os
-from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file
+from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file, Response
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import jwt
@@ -33,6 +33,10 @@ thread_lock = Lock()
 active_clients = {}
 original_server_file_path_for_file_to_send_to_client=""
 app = Flask(__name__)
+
+# Global variables and constants for screen share
+SCREENSHARE_SCREENSHOT_PATH = "static/latest_screenshot.png"
+
 
 socketio = SocketIO(app, cors_allowed_origins="*", ssl_context=('cert.pem', 'key.pem'))
 
@@ -976,6 +980,47 @@ def get_logs(decoded_token):
 
     # Return the filtered logs as JSON
     return jsonify(filtered_logs)
+
+@app.route('/screenshare')
+def screenshare():
+    return render_template('screenshare.html')
+
+@app.route('/api/screenshare', methods=['POST'])
+def upload_screenshot():
+    try:
+        if 'screenshot' not in request.files:
+            print("No screenshot uploaded")
+            return Response("No screenshot uploaded", status=400)
+        
+        screenshot = request.files['screenshot']
+        if screenshot.filename == '':
+            print("Empty filename received")
+            return Response("Empty filename", status=400)
+
+        screenshot.save(SCREENSHARE_SCREENSHOT_PATH)
+        print(f"Screenshot saved to {SCREENSHARE_SCREENSHOT_PATH} at {time.ctime()}")
+        return Response("Screenshot received", status=200)
+    except Exception as e:
+        print(f"Error saving screenshot: {e}")
+        return Response(f"Server error: {str(e)}", status=500)
+
+@app.route('/api/view-screenshare')
+def get_screenshot():
+    try:
+        if os.path.exists(SCREENSHARE_SCREENSHOT_PATH):
+            print(f"Serving screenshot from {SCREENSHARE_SCREENSHOT_PATH}")
+            # Use make_response to add no-cache headers
+            response = make_response(send_file(SCREENSHARE_SCREENSHOT_PATH, mimetype='image/png'))
+            response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            response.headers['Pragma'] = 'no-cache'
+            response.headers['Expires'] = '0'
+            return response
+        else:
+            print(f"Screenshot file not found at {SCREENSHARE_SCREENSHOT_PATH}")
+            return Response("No screenshot available", status=404)
+    except Exception as e:
+        print(f"Error serving screenshot: {e}")
+        return Response(f"Server error: {str(e)}", status=500)
 
 
 @app.route("/api/createAdmin", methods=["POST"])

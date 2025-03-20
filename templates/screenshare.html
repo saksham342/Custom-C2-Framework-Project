@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Live Screenshare Dashboard</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #121212;
+            font-family: "Roboto Mono", monospace;
+            color: #00ff88;
+        }
+
+        h1 {
+            text-align: center;
+            text-shadow: 0 0 8px #00ff88;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            border: 1px solid #00ff88;
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin: 0 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #00ff88;
+            color: #121212;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #00cc70;
+        }
+
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Live Screenshare Dashboard</h1>
+    <img id="screenshot" src="/api/view-screenshare" alt="Latest Screenshot" ,
+        onerror="this.src='data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='">
+    <div class="controls">
+        <button id="startBtn">Start Recording</button>
+        <button id="stopBtn" disabled>Stop Recording</button>
+        <button id="toggleSizeBtn">Toggle Full Screen</button>
+    </div>
+
+    <script>
+        const img = document.getElementById('screenshot');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const toggleSizeBtn = document.getElementById("toggleSizeBtn");
+        let isFullScreen = false;
+
+        toggleSizeBtn.addEventListener("click", () => {
+            if (isFullScreen) {
+                screenshot.style.width = "70%";
+                screenshot.style.maxWidth = "800px";
+            } else {
+                screenshot.style.width = "100%";
+                screenshot.style.maxWidth = "100vw";
+            }
+            isFullScreen = !isFullScreen;
+        });
+
+        let mediaRecorder;
+        let recordedChunks = [];
+        let stream;
+        let canvas;
+        let ctx;
+
+        // Refresh the image every 100ms (10 FPS default)
+        function refreshImage() {
+            img.src = '/api/view-screenshare?' + new Date().getTime();
+        }
+        setInterval(refreshImage, 100);
+
+        // Initialize canvas for capturing frames
+        function setupCanvas() {
+            canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth || 1280; // Default width if not loaded yet
+            canvas.height = img.naturalHeight || 720; // Default height if not loaded yet
+            ctx = canvas.getContext('2d');
+            // Update canvas size when image loads
+            img.onload = () => {
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+            };
+        }
+
+        // Start recording
+        startBtn.addEventListener('click', () => {
+            if (!canvas) setupCanvas();
+
+            // Create a stream from the canvas
+            stream = canvas.captureStream(10); // 10 FPS to match refresh rate
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks.push(event.data);
+                }
+            };
+
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `screenshare-${new Date().toISOString()}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                recordedChunks = [];
+            };
+
+            // Draw the image to the canvas at 10 FPS
+            function drawFrame() {
+                if (mediaRecorder.state === 'recording') {
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    requestAnimationFrame(drawFrame);
+                }
+            }
+
+            mediaRecorder.start();
+            drawFrame();
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+        });
+
+        // Stop recording
+        stopBtn.addEventListener('click', () => {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                stream.getTracks().forEach(track => track.stop());
+                startBtn.disabled = false;
+                stopBtn.disabled = true;
+            }
+        });
+    </script>
+</body>
+
+</html>

