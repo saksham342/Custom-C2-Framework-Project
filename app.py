@@ -1,5 +1,5 @@
 import os
-from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file, Response
+from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file, Response, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import jwt
@@ -921,6 +921,64 @@ def get_initiators(decoded_token):
         return jsonify({"error": str(e)}), 500
 
 
+def get_directory_listing(subpath=""):
+    """Safely list directory contents while preventing path traversal."""
+    # Construct the full path
+    full_path = os.path.join(UPLOAD_FOLDER, subpath)
+
+    # Convert to absolute paths for security check
+    abs_upload_folder = os.path.abspath(UPLOAD_FOLDER)
+    abs_full_path = os.path.abspath(full_path)
+
+    # Prevent directory traversal
+    if not abs_full_path.startswith(abs_upload_folder):
+        return None
+
+    if not os.path.isdir(abs_full_path):
+        return None
+
+    # List directory contents
+    files = []
+    dirs = []
+    for item in os.listdir(abs_full_path):
+        item_path = os.path.join(abs_full_path, item)
+        if os.path.isdir(item_path):
+            dirs.append(item)
+        elif os.path.isfile(item_path):
+            files.append(item)
+
+    return {"path": subpath, "dirs": dirs, "files": files}
+
+@app.route('/api/uploads/', defaults={'subpath': ''})
+@app.route('/api/uploads/<path:subpath>')
+def list_directory(subpath):
+    """Return directory listing as JSON."""
+    directory_listing = get_directory_listing(subpath)
+    if directory_listing is None:
+        abort(403)  # Access denied or not a directory
+    return jsonify(directory_listing)
+
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    """Serve files for download or redirect to directory listing."""
+    safe_path = os.path.join(UPLOAD_FOLDER, filename)
+
+    # Convert to absolute paths for security check
+    abs_upload_folder = os.path.abspath(UPLOAD_FOLDER)
+    abs_safe_path = os.path.abspath(safe_path)
+
+    # Prevent directory traversal
+    if not abs_safe_path.startswith(abs_upload_folder):
+        abort(403)  # Access denied
+
+    if os.path.isdir(abs_safe_path):
+        # Redirect to directory listing if it's a directory
+        return redirect(f"/#/{filename}")
+    
+    if not os.path.isfile(abs_safe_path):
+        abort(404)  # File not found
+
+    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=True)
 
 @app.route('/logs/')
 @token_required

