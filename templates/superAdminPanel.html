@@ -1,4 +1,4 @@
-rm<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -149,9 +149,7 @@ rm<!DOCTYPE html>
         /* Admin Table Scroll */
         .admin-table-container {
             max-height: 300px;
-            /* Set maximum height for the table */
             overflow-y: auto;
-            /* Make it scrollable */
             margin-top: 20px;
             border: 1px solid #00ff88;
             border-radius: 5px;
@@ -239,6 +237,32 @@ rm<!DOCTYPE html>
             font-family: "Roboto Mono", monospace;
             text-emphasis-color: white;
         }
+
+        /* Dashboard Link Styles */
+        .dashboard-link {
+            display: flex;
+            align-items: center;
+            padding: 3px;
+            margin-bottom: 15px;
+            background-color: #00ff88;
+            color: #121212;
+            border-radius: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+
+        .dashboard-link:hover {
+            background-color: #00cc70;
+        }
+
+        .dashboard-link svg {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+        }
     </style>
 </head>
 
@@ -258,6 +282,15 @@ rm<!DOCTYPE html>
         <div class="admin-panel">
             <!-- Sidebar -->
             <div class="sidebar">
+                <a href="/dashboard" class="dashboard-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" height="100" width="200">
+  
+                        <line stroke-width="4" stroke="black" y2="50" x2="80" y1="50" x1="150"></line>
+                        
+                        <polygon fill="black" points="80,50 100,40 100,60"></polygon>
+                      </svg>
+                    Go to Dashboard
+                </a>
                 <h2>Super Admin Menu</h2>
                 <ul>
                     <li onclick="showSection('changePasswordForm')">Change Superadmin Password</li>
@@ -272,8 +305,7 @@ rm<!DOCTYPE html>
                 <br><br>
                 <div id="changePasswordForm" class="password-form hidden">
                     <h3>Change Super Admin's Password</h3>
-                    <hr
-                        style="height: 2px; width: 80%; background-color: #c8e6c9; border: none; margin-left: 0;margin-top: 15px;">
+                    <hr style="height: 2px; width: 80%; background-color: #c8e6c9; border: none; margin-left: 0;margin-top: 15px;">
                     <br><br>
                     <form id="superAdminpasswordForm">
                         <input type="password" id="currentPassword" placeholder="Current Password" required>
@@ -286,8 +318,7 @@ rm<!DOCTYPE html>
 
                 <div id="createAdminsForm" class="password-form hidden">
                     <h3>Add Admin</h3>
-                    <hr
-                        style="height: 2px; width: 80%; background-color: #c8e6c9; border: none; margin-left: 0;margin-top: 15px;">
+                    <hr style="height: 2px; width: 80%; background-color: #c8e6c9; border: none; margin-left: 0;margin-top: 15px;">
                     <br><br>
                     <div id="messageContainer"></div>
                     <form id="adminForm">
@@ -301,8 +332,7 @@ rm<!DOCTYPE html>
 
                 <div id="manageAdmins" class="password-form hidden">
                     <h3>Manage Admins</h3>
-                    <hr
-                        style="height: 2px; width: 80%; background-color: #c8e6c9; border: none; margin-left: 0;margin-top: 15px;">
+                    <hr style="height: 2px; width: 80%; background-color: #c8e6c9; border: none; margin-left: 0;margin-top: 15px;">
                     <br><br>
                     <div class="admin-table-container">
                         <table id="adminTable">
@@ -322,33 +352,23 @@ rm<!DOCTYPE html>
                 </div>
                 <!-- Change Admin Password Modal -->
                 <!-- Modal -->
-                <div id="changeAdminPasswordModal"
-                    style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); z-index: 1000; padding: 30px; width: 350px; display: none;">
+                <div id="changeAdminPasswordModal" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 10px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); z-index: 1000; padding: 30px; width: 350px; display: none;">
                     <div style="text-align: center;">
                         <h2 style="margin-bottom: 20px; font-size: 20px; color: #333;">Change Admin Password</h2>
                         <form id="changeAdminPasswordForm" style="display: flex; flex-direction: column; gap: 15px;">
-                            <input type="password" id="adminCurrentPassword" placeholder="Current Password" required
-                                style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px;">
-                            <input type="password" id="adminNewPassword" placeholder="New Password" required
-                                style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px;">
-                            <input type="password" id="adminConfirmNewPassword" placeholder="Confirm New Password"
-                                required
-                                style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px;">
+                            <input type="password" id="adminCurrentPassword" placeholder="Current Password" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px;">
+                            <input type="password" id="adminNewPassword" placeholder="New Password" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px;">
+                            <input type="password" id="adminConfirmNewPassword" placeholder="Confirm New Password" required style="width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px;">
                             <div style="display: flex; justify-content: space-between; gap: 10px;">
-                                <button type="submit"
-                                    style="flex: 1; background-color: #4CAF50; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 14px;">Change
-                                    Password</button>
-                                <button type="button" onclick="closeAdminPasswordModal()"
-                                    style="flex: 1; background-color: #f44336; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 14px;">Cancel</button>
+                                <button type="submit" style="flex: 1; background-color: #4CAF50; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 14px;">Change Password</button>
+                                <button type="button" onclick="closeAdminPasswordModal()" style="flex: 1; background-color: #f44336; color: white; border: none; padding: 12px; border-radius: 5px; cursor: pointer; font-size: 14px;">Cancel</button>
                             </div>
                         </form>
                     </div>
                 </div>
 
                 <!-- Optional Overlay -->
-                <div id="modalOverlay"
-                    style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; z-index: 999;">
-                </div>
+                <div id="modalOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); display: none; z-index: 999;"></div>
 
                 </form>
 
@@ -370,8 +390,6 @@ rm<!DOCTYPE html>
                 });
             }
 
-
-            // Fetch and list all admins
             function listAllAdmins() {
                 fetch('/api/getAllAdmins', {
                     method: 'GET',
@@ -382,7 +400,6 @@ rm<!DOCTYPE html>
                         if (data.status === 'success') {
                             const admins = data.admins;
                             const adminTableBody = document.querySelector('#adminTable tbody');
-                            // Clear the table before adding new data
                             adminTableBody.innerHTML = '';
                             admins.forEach(admin => {
                                 const row = document.createElement('tr');
@@ -393,8 +410,6 @@ rm<!DOCTYPE html>
                     <td>
                         <button class="btn" onclick="changeAdminPassword('${admin.codename}')">Change Password</button>
                         <button class="btn" onclick="deleteAdmin('${admin.codename}')">Delete</button>
-
-
                     </td>
                 `;
                                 adminTableBody.appendChild(row);
@@ -407,17 +422,11 @@ rm<!DOCTYPE html>
                         console.error('Error fetching admins:', error);
                     });
             }
-            // Initialize the admin table on page load
             listAllAdmins();
 
-
-
-
-            // Function to delete an admin and refresh the admin list
             async function deleteAdmin(adminCodename) {
                 const userConfirmation = confirm(`Are you sure you want to delete the user ${adminCodename}?`);
                 if (!userConfirmation) {
-                    // If the user clicks "Cancel," stop execution.
                     return;
                 }
                 try {
@@ -431,8 +440,6 @@ rm<!DOCTYPE html>
                     if (response.ok) {
                         const result = await response.json();
                         alert(`Success: ${result.message}`);
-
-                        // Refresh the admin list after successful deletion
                         listAllAdmins();
                     } else {
                         const error = await response.json();
@@ -444,10 +451,6 @@ rm<!DOCTYPE html>
                 }
             }
 
-
-
-
-            // Change Super Admin Password
             const superAdminPasswordForm = document.getElementById('superAdminpasswordForm');
             superAdminPasswordForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
@@ -466,7 +469,6 @@ rm<!DOCTYPE html>
                         body: JSON.stringify(payload),
                     });
                     const data = await response.json();
-
                     if (response.ok) {
                         alert(data.message || 'Password changed successfully.');
                         superAdminPasswordForm.reset();
@@ -478,12 +480,6 @@ rm<!DOCTYPE html>
                 }
             });
 
-
-
-
-
-
-            // Create Admin
             const adminForm = document.getElementById('adminForm');
             const messageContainer = document.getElementById('messageContainer');
             const showMessage = (message, isError = false) => {
@@ -513,7 +509,6 @@ rm<!DOCTYPE html>
                     if (response.ok) {
                         showMessage(data.message || 'Admin created successfully.');
                         adminForm.reset();
-                        // Refresh the admin list after creating a new admin
                         listAllAdmins();
                     } else {
                         showMessage(data.error || 'Failed to create admin.', true);
@@ -523,12 +518,8 @@ rm<!DOCTYPE html>
                 }
             });
 
+            let isSubmitting = false;
 
-
-
-            let isSubmitting = false; // Flag to prevent multiple submissions
-
-            // Show the modal and overlay when "Change Password" button is clicked
             function changeAdminPassword(adminCodename) {
                 const modal = document.getElementById('changeAdminPasswordModal');
                 const overlay = document.getElementById('modalOverlay');
@@ -537,43 +528,28 @@ rm<!DOCTYPE html>
                 modal.setAttribute('data-admin-codename', adminCodename);
 
                 const form = document.getElementById("changeAdminPasswordForm");
-
-                // Remove any existing event listener to avoid multiple bindings
                 form.removeEventListener("submit", handleSubmit);
-
-                // Add the event listener for form submission
                 form.addEventListener("submit", handleSubmit);
 
                 async function handleSubmit(event) {
-                    // Prevent default behavior of form submission
                     event.preventDefault();
-
-                    // Check if the form is already being submitted
-                    if (isSubmitting) return; // Prevent the form from submitting multiple times
-                    isSubmitting = true; // Set flag to indicate submission is in progress
-
-                    // Get the input values
+                    if (isSubmitting) return;
+                    isSubmitting = true;
                     const currentPassword = document.getElementById("adminCurrentPassword").value;
                     const newPassword = document.getElementById("adminNewPassword").value;
                     const confirmPassword = document.getElementById("adminConfirmNewPassword").value;
-
-                    // Validate new passwords match
                     if (newPassword !== confirmPassword) {
                         alert("New passwords do not match!");
-                        isSubmitting = false; // Reset flag on validation failure
+                        isSubmitting = false;
                         return;
                     }
-
-                    // Prepare the payload
                     const payload = {
                         currentPassword: currentPassword,
                         newPassword: newPassword,
                         confirmPassword: confirmPassword,
                         adminCodename: adminCodename
                     };
-
                     try {
-                        // Send POST request to the API
                         const response = await fetch("/api/changeAdminPassword", {
                             method: "POST",
                             headers: {
@@ -581,36 +557,27 @@ rm<!DOCTYPE html>
                             },
                             body: JSON.stringify(payload),
                         });
-
-                        // Parse the response
                         const data = await response.json();
-
                         if (response.ok) {
-                            // Handle success
                             alert(data.message || "Password changed successfully!");
-                            closeAdminPasswordModal(); // Close the modal
-                            form.reset(); // Reset the form
+                            closeAdminPasswordModal();
+                            form.reset();
                         } else {
-                            // Handle errors
                             alert(data.error || "Failed to change password.");
                         }
                     } catch (error) {
                         alert("An unexpected error occurred: " + error.message);
                     }
-
-                    // Reset the submitting flag after request is done
                     isSubmitting = false;
                 }
             }
 
-            // Hide the modal and overlay when "Cancel" button is clicked
             function closeAdminPasswordModal() {
                 const modal = document.getElementById('changeAdminPasswordModal');
                 const overlay = document.getElementById('modalOverlay');
                 modal.style.display = 'none';
                 overlay.style.display = 'none';
             }
-
         </script>
 </body>
 

