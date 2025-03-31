@@ -1381,12 +1381,47 @@
                 .then(data => {
                     console.log(`Command sent: ${command}`);
                     if (data.status) alert(data.status);
+
+                    // Hide start button and show stop button
                     document.getElementById('startRecording').style.display = 'none';
                     document.getElementById('stopRecording').style.display = 'inline';
+
+                    // Open /video tab in a new tab
+                    const videoTab = window.open('/video', '_blank');
+
+                    // Check if the tab is closed and call stopRecording
+                    const checkTabClosed = setInterval(() => {
+                        if (videoTab.closed) {
+                            clearInterval(checkTabClosed); // Stop checking
+                            stopRecording(); // Call the stopRecording function
+                        }
+                    }, 500); // Check every 500ms
                 })
                 .catch(error => {
                     alert("Failed to send the command. Please try again.");
                     console.error('Error:', error);
+                });
+        }
+
+        // Example stopRecording function (you can customize this)
+        function stopRecording() {
+            console.log("Recording stopped");
+            // Optionally send a stop command to the server
+            fetch('/input-command-to-execute-from-web', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientid: currentClientId, command: 'stop_video' })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log("Stop command sent");
+                    if (data.status) alert(data.status);
+                    // Show start button and hide stop button
+                    document.getElementById('startRecording').style.display = 'inline';
+                    document.getElementById('stopRecording').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error stopping recording:', error);
                 });
         }
 

