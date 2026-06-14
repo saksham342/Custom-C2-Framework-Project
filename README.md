@@ -8,6 +8,7 @@ Most students building their final year project pick something safe — a web ap
 This is not just a college project to me. I was working as a penetration tester while building this. Every engagement I ran, I was using other people's tools, other people's frameworks. I wanted to understand what was happening underneath — the encryption, the key exchange, the persistence, the payload delivery. The only way to truly understand it was to build it myself.
 It took months. The dual-layer encryption broke more times than I can count. Getting cross-platform payload delivery to work on both Windows and Linux simultaneously was a different problem every week. There were nights I genuinely did not know if it would work. But it did.
 I call it the project of my life because it represents everything I have learned about offensive security condensed into one thing I built with my own hands. Not a CTF challenge. Not a tutorial. Mine.
+
 ---
 
 # Table of Contents
